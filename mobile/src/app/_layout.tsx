@@ -6,7 +6,6 @@ export default function RootLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'USM Carpool',
           headerShown: false,
         }}
       />
@@ -22,6 +21,34 @@ export default function RootLayout() {
         name="login"
         options={{
           title: 'Login',
+        }}
+      />
+
+      <Stack.Screen
+        name="dashboard"
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="vehicle"
+        options={{
+          title: 'Vehicle',
+        }}
+      />
+
+      <Stack.Screen
+        name="create-ride"
+        options={{
+          title: 'Offer Ride',
+        }}
+      />
+
+      <Stack.Screen
+        name="find-ride"
+        options={{
+          title: 'Find Ride',
         }}
       />
     </Stack>

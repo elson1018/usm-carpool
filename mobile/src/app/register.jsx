@@ -1,11 +1,15 @@
 import { useState } from 'react';
+
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   Alert,
+  StyleSheet,
 } from 'react-native';
+
+import { router } from 'expo-router';
 
 import { supabase } from '../lib/supabase';
 
@@ -16,49 +20,102 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  const [loading, setLoading] = useState(false);
+
   async function register() {
-    if (!fullName || !studentId || !faculty || !email || !password) {
-      Alert.alert('Missing information', 'Please fill in all fields.');
+    if (
+      !fullName ||
+      !studentId ||
+      !faculty ||
+      !email ||
+      !password
+    ) {
+      Alert.alert(
+        'Missing information',
+        'Please fill in all fields.'
+      );
+
       return;
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    if (password.length < 6) {
+      Alert.alert(
+        'Invalid password',
+        'Password must contain at least 6 characters.'
+      );
 
-    const { data, error } = await supabase.auth.signUp({
-      email: normalizedEmail,
-      password,
-    });
-
-    if (error) {
-      Alert.alert('Registration failed', error.message);
       return;
     }
 
-    if (!data.user) {
-      Alert.alert('Registration failed', 'Unable to create user.');
-      return;
+    try {
+      setLoading(true);
+
+      const normalizedEmail =
+        email.trim().toLowerCase();
+
+      const { data, error } =
+        await supabase.auth.signUp({
+          email: normalizedEmail,
+
+          password: password,
+
+          options: {
+            data: {
+              full_name: fullName.trim(),
+              student_id: studentId.trim(),
+              faculty: faculty.trim(),
+            },
+          },
+        });
+
+      if (error) {
+        Alert.alert(
+          'Registration failed',
+          error.message
+        );
+
+        return;
+      }
+
+      console.log(
+        'Registered user:',
+        data.user
+      );
+
+      Alert.alert(
+        'Account created',
+        'Registration successful.',
+        [
+          {
+            text: 'Continue',
+
+            onPress: () => {
+              router.replace('/login');
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error(error);
+
+      Alert.alert(
+        'Error',
+        'Something went wrong.'
+      );
+    } finally {
+      setLoading(false);
     }
-
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: data.user.id,
-        full_name: fullName,
-        student_id: studentId,
-        faculty,
-      });
-
-    if (profileError) {
-      Alert.alert('Profile creation failed', profileError.message);
-      return;
-    }
-
-    Alert.alert('Success', 'Your account has been created.');
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
+      <Text style={styles.title}>
+        Create Account
+      </Text>
+
+      <Text style={styles.subtitle}>
+        Join the USM student carpool community
+      </Text>
 
       <TextInput
         placeholder="Full name"
@@ -98,38 +155,82 @@ export default function RegisterScreen() {
         style={styles.input}
       />
 
-      <TouchableOpacity onPress={register} style={styles.button}>
-        <Text style={styles.buttonText}>Register</Text>
+      <TouchableOpacity
+        onPress={register}
+        disabled={loading}
+        style={[
+          styles.button,
+
+          loading && {
+            opacity: 0.5,
+          },
+        ]}
+      >
+        <Text style={styles.buttonText}>
+          {loading
+            ? 'Creating account...'
+            : 'Register'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() =>
+          router.push('/login')
+        }
+      >
+        <Text style={styles.loginText}>
+          Already have an account? Login
+        </Text>
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = {
+const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 24,
     justifyContent: 'center',
-    gap: 14,
   },
+
   title: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
   },
+
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 8,
+    marginBottom: 30,
+  },
+
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 10,
-    padding: 14,
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 15,
+    fontSize: 16,
   },
+
   button: {
-    padding: 16,
-    borderRadius: 10,
     backgroundColor: '#222',
+    padding: 17,
+    borderRadius: 12,
+    marginTop: 5,
   },
+
   buttonText: {
     color: 'white',
     textAlign: 'center',
+    fontSize: 17,
     fontWeight: 'bold',
   },
-};
+
+  loginText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontWeight: '600',
+  },
+});

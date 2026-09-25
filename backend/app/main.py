@@ -11,10 +11,3 @@ def root():
     return {
         "message": "USM Carpool API is running"
     }
-
-
-@app.get("/health")
-def health():
-    return {
-        "status": "healthy"
-    }
