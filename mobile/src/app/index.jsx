@@ -20,6 +20,7 @@ export default function HomeScreen() {
     checkSession();
   }, []);
 
+  // Make the app to remember logged-in users
   async function checkSession() {
     const {
       data: { session },

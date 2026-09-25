@@ -51,6 +51,12 @@ export default function RootLayout() {
           title: 'Find Ride',
         }}
       />
+      <Stack.Screen
+        name="my-vehicles"
+        options={{
+          title: 'My Vehicles',
+        }}
+      />
     </Stack>
   );
 }

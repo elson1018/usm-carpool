@@ -138,12 +138,12 @@ export default function DashboardScreen() {
 
       <TouchableOpacity
         onPress={() =>
-          router.push('/vehicle')
+            router.push('/my-vehicles')
         }
         style={styles.secondaryButton}
       >
         <Text style={styles.secondaryText}>
-          Add Vehicle
+            My Vehicles
         </Text>
       </TouchableOpacity>
 
