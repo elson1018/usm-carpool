@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react';
+
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 
 import { router } from 'expo-router';
@@ -10,29 +13,114 @@ import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 
 export default function DashboardScreen() {
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    checkUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!session) {
+          router.replace('/login');
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  async function checkUser() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      router.replace('/login');
+      return;
+    }
+
+    const currentUser = session.user;
+
+    setUser(currentUser);
+
+    const { data: profileData, error } =
+      await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+
+    if (error) {
+      console.log(
+        'Profile error:',
+        error.message
+      );
+    } else {
+      setProfile(profileData);
+    }
+
+    setLoading(false);
+  }
+
   async function logout() {
-    await supabase.auth.signOut();
+    const { error } =
+      await supabase.auth.signOut();
+
+    if (error) {
+      console.log(
+        'Logout error:',
+        error.message
+      );
+
+      return;
+    }
 
     router.replace('/');
   }
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" />
+
+        <Text style={styles.loadingText}>
+          Loading...
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>
-        USM Carpool
+      <Text style={styles.welcome}>
+        Welcome
+        {profile?.full_name
+          ? `, ${profile.full_name}`
+          : ''}
+        👋
       </Text>
 
-      <Text style={styles.subtitle}>
-        What would you like to do?
+      <Text style={styles.email}>
+        {user?.email}
+      </Text>
+
+      <Text style={styles.title}>
+        Where are you going?
       </Text>
 
       <TouchableOpacity
         onPress={() =>
           router.push('/find-ride')
         }
-        style={styles.button}
+        style={styles.primaryButton}
       >
-        <Text style={styles.buttonText}>
+        <Text style={styles.primaryText}>
           Find a Ride
         </Text>
       </TouchableOpacity>
@@ -41,9 +129,9 @@ export default function DashboardScreen() {
         onPress={() =>
           router.push('/create-ride')
         }
-        style={styles.button}
+        style={styles.primaryButton}
       >
-        <Text style={styles.buttonText}>
+        <Text style={styles.primaryText}>
           Offer a Ride
         </Text>
       </TouchableOpacity>
@@ -78,31 +166,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  title: {
-    fontSize: 34,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  loadingText: {
+    marginTop: 10,
+  },
+
+  welcome: {
+    fontSize: 28,
     fontWeight: 'bold',
-    textAlign: 'center',
   },
 
-  subtitle: {
+  email: {
+    fontSize: 14,
     color: '#666',
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 35,
+    marginTop: 6,
+    marginBottom: 40,
   },
 
-  button: {
+  title: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 20,
+  },
+
+  primaryButton: {
     backgroundColor: '#222',
     padding: 17,
     borderRadius: 12,
     marginBottom: 15,
   },
 
-  buttonText: {
+  primaryText: {
     color: 'white',
+    textAlign: 'center',
     fontSize: 17,
     fontWeight: 'bold',
-    textAlign: 'center',
   },
 
   secondaryButton: {
@@ -120,10 +223,12 @@ const styles = StyleSheet.create({
 
   logoutButton: {
     marginTop: 40,
+    padding: 12,
   },
 
   logoutText: {
     textAlign: 'center',
     color: '#666',
+    fontWeight: '600',
   },
 });
