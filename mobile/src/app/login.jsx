@@ -1,3 +1,4 @@
+// Login screen: handles user authentication using Supabase email and password
 import { useState } from 'react';
 
 import {
@@ -18,6 +19,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Sign in existing user with Supabase auth
   async function login() {
     if (!email || !password) {
       Alert.alert(

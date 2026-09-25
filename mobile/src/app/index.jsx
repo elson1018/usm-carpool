@@ -1,3 +1,4 @@
+// Landing / Welcome screen: checks if user is already logged in, otherwise shows Login/Register options
 import { useEffect, useState } from 'react';
 
 import {
@@ -16,11 +17,12 @@ export default function HomeScreen() {
   const [checkingSession, setCheckingSession] =
     useState(true);
 
+  // Check login status on component mount
   useEffect(() => {
     checkSession();
   }, []);
 
-  // Make the app to remember logged-in users
+  // Check if an existing Supabase session exists; redirect to dashboard if found
   async function checkSession() {
     const {
       data: { session },

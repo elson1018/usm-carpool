@@ -1,3 +1,4 @@
+// Offer a Ride screen: form for drivers to publish available carpool trips
 import { useState } from 'react';
 import {
   View,
@@ -17,6 +18,7 @@ export default function CreateRideScreen() {
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Validate ride inputs and submit the ride posting
   function createRide() {
     if (
       !origin ||

@@ -1,3 +1,4 @@
+// Add Vehicle screen: form to register a new vehicle for offering carpool rides
 import { useState } from 'react';
 
 import {
@@ -22,6 +23,7 @@ export default function VehicleScreen() {
 
   const [loading, setLoading] = useState(false);
 
+  // Validate vehicle details and insert record into Supabase vehicles table
   async function saveVehicle() {
     if (
       !brand ||

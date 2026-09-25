@@ -1,8 +1,10 @@
+// Root navigation layout: defines the stack navigator and screen headers for the app
 import { Stack } from 'expo-router';
 
 export default function RootLayout() {
   return (
     <Stack>
+      {/* Landing / Welcome Screen */}
       <Stack.Screen
         name="index"
         options={{
@@ -10,6 +12,7 @@ export default function RootLayout() {
         }}
       />
 
+      {/* Authentication */}
       <Stack.Screen
         name="register"
         options={{
@@ -24,6 +27,7 @@ export default function RootLayout() {
         }}
       />
 
+      {/* Main App Screens */}
       <Stack.Screen
         name="dashboard"
         options={{
@@ -31,6 +35,7 @@ export default function RootLayout() {
         }}
       />
 
+      {/* Vehicle Management */}
       <Stack.Screen
         name="vehicle"
         options={{
@@ -38,6 +43,14 @@ export default function RootLayout() {
         }}
       />
 
+      <Stack.Screen
+        name="my-vehicles"
+        options={{
+          title: 'My Vehicles',
+        }}
+      />
+
+      {/* Ride Features */}
       <Stack.Screen
         name="create-ride"
         options={{
@@ -49,12 +62,6 @@ export default function RootLayout() {
         name="find-ride"
         options={{
           title: 'Find Ride',
-        }}
-      />
-      <Stack.Screen
-        name="my-vehicles"
-        options={{
-          title: 'My Vehicles',
         }}
       />
     </Stack>

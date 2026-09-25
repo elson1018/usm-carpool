@@ -1,3 +1,4 @@
+// My Vehicles screen: displays the logged-in user's registered vehicles and allows deletion
 import {
   View,
   Text,
@@ -27,12 +28,14 @@ export default function MyVehiclesScreen() {
   const [loading, setLoading] =
     useState(true);
 
+  // Reload vehicles every time this screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadVehicles();
     }, [])
   );
 
+  // Fetch all vehicles belonging to the current logged-in user
   async function loadVehicles() {
     setLoading(true);
 
@@ -70,6 +73,7 @@ export default function MyVehiclesScreen() {
     setLoading(false);
   }
 
+  // Delete a vehicle record from Supabase
   async function deleteVehicle(id) {
     const { error } =
       await supabase
@@ -89,6 +93,7 @@ export default function MyVehiclesScreen() {
     loadVehicles();
   }
 
+  // Prompt the user for confirmation before deleting
   function confirmDelete(vehicle) {
     Alert.alert(
       'Delete vehicle?',

@@ -1,3 +1,4 @@
+// Test screen: quick diagnostic check to verify Supabase configuration in the app
 import { View, Text } from 'react-native';
 
 export default function TestSupabase() {

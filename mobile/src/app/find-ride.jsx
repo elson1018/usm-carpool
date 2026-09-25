@@ -1,3 +1,4 @@
+// Find Ride screen: displays available carpool rides for students to search and join
 import {
   View,
   Text,
@@ -5,7 +6,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 
-const rides = [ //sample data, will remove soon
+// Sample mock rides data (temporary placeholder until database integration)
+const rides = [
   {
     id: '1',
     driver: 'Jason',

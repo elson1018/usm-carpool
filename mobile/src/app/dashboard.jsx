@@ -1,3 +1,4 @@
+// Dashboard screen: main menu showing user profile and quick access to carpool actions
 import { useEffect, useState } from 'react';
 
 import {
@@ -17,6 +18,7 @@ export default function DashboardScreen() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
 
+  // Load user data on mount and listen for authentication changes
   useEffect(() => {
     checkUser();
 
@@ -35,6 +37,7 @@ export default function DashboardScreen() {
     };
   }, []);
 
+  // Fetch current session and profile data from Supabase
   async function checkUser() {
     const {
       data: { session },
@@ -68,6 +71,7 @@ export default function DashboardScreen() {
     setLoading(false);
   }
 
+  // Log out the user and return to the welcome screen
   async function logout() {
     const { error } =
       await supabase.auth.signOut();

@@ -1,3 +1,4 @@
+// Register screen: allows new USM students to create an account with profile details
 import { useState } from 'react';
 
 import {
@@ -22,6 +23,7 @@ export default function RegisterScreen() {
 
   const [loading, setLoading] = useState(false);
 
+  // Validate inputs and create a new account in Supabase
   async function register() {
     if (
       !fullName ||
