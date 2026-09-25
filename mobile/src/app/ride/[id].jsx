@@ -139,6 +139,106 @@ export default function RideDetailsScreen() {
     );
   }
 
+  // Cancel a pending ride request by deleting it from Supabase
+  async function cancelRequest() {
+    if (!request) return;
+
+    const { error } = await supabase
+      .from('ride_requests')
+      .delete()
+      .eq('id', request.id);
+
+    if (error) {
+      Alert.alert(
+        'Unable to cancel request',
+        error.message
+      );
+      return;
+    }
+
+    setRequest(null);
+
+    Alert.alert(
+      'Request cancelled',
+      'Your ride request has been cancelled.'
+    );
+  }
+
+  // Confirm with the driver before cancelling their offered ride
+  function confirmCancelRide() {
+    Alert.alert(
+      'Cancel ride?',
+      'This ride will no longer be available to passengers.',
+      [
+        {
+          text: 'Keep Ride',
+          style: 'cancel',
+        },
+        {
+          text: 'Cancel Ride',
+          style: 'destructive',
+          onPress: cancelRide,
+        },
+      ]
+    );
+  }
+
+  // Mark the ride as cancelled in Supabase
+  async function cancelRide() {
+    const { error } = await supabase
+      .from('rides')
+      .update({
+        status: 'cancelled',
+      })
+      .eq('id', ride.id);
+
+    if (error) {
+      Alert.alert(
+        'Unable to cancel ride',
+        error.message
+      );
+      return;
+    }
+
+    setRide({
+      ...ride,
+      status: 'cancelled',
+    });
+
+    Alert.alert(
+      'Ride cancelled',
+      'The ride has been cancelled.'
+    );
+  }
+
+  // Mark the ride as completed in Supabase
+  async function completeRide() {
+    const { error } = await supabase
+      .from('rides')
+      .update({
+        status: 'completed',
+      })
+      .eq('id', ride.id);
+
+    if (error) {
+      Alert.alert(
+        'Unable to complete ride',
+        error.message
+      );
+      return;
+    }
+
+    setRide({
+      ...ride,
+      status: 'completed',
+    });
+
+    Alert.alert(
+      'Ride completed',
+      'This ride has been marked as completed.'
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -211,6 +311,14 @@ export default function RideDetailsScreen() {
           RM{ride.price_per_seat} / seat
         </Text>
 
+        <Text style={styles.label}>
+          Ride Status
+        </Text>
+
+        <Text style={styles.status}>
+          {ride.status.toUpperCase()}
+        </Text>
+
         {ride.notes ? (
           <>
             <Text style={styles.label}>
@@ -227,27 +335,50 @@ export default function RideDetailsScreen() {
       {/* Show status if user is the driver or has already requested; otherwise show Request button */}
       {isDriver ? (
         <View>
-            <Text style={styles.message}>
+          <Text style={styles.message}>
             This is your ride.
-            </Text>
+          </Text>
 
-            <TouchableOpacity
-            onPress={() =>
-                router.push({
-                pathname: '/ride-requests/[rideId]',
-                params: {
-                    rideId: ride.id,
-                },
-                })
-            }
-            style={styles.button}
-            >
-            <Text style={styles.buttonText}>
-                View Passenger Requests
-            </Text>
-            </TouchableOpacity>
+          {ride.status === 'available' ||
+          ride.status === 'full' ? (
+            <>
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: '/ride-requests/[rideId]',
+                    params: {
+                      rideId: ride.id,
+                    },
+                  })
+                }
+                style={styles.button}
+              >
+                <Text style={styles.buttonText}>
+                  View Passenger Requests
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={completeRide}
+                style={styles.completeButton}
+              >
+                <Text style={styles.completeButtonText}>
+                  Mark as Completed
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={confirmCancelRide}
+                style={styles.cancelRideButton}
+              >
+                <Text style={styles.cancelRideText}>
+                  Cancel Ride
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
         </View>
-        ) : request ? (
+      ) : request ? (
         <View style={styles.statusBox}>
           <Text style={styles.label}>
             Request Status
@@ -256,6 +387,17 @@ export default function RideDetailsScreen() {
           <Text style={styles.status}>
             {request.status.toUpperCase()}
           </Text>
+
+          {request.status === 'pending' ? (
+            <TouchableOpacity
+              onPress={cancelRequest}
+              style={styles.cancelButton}
+            >
+              <Text style={styles.cancelText}>
+                Cancel Request
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : (
         <TouchableOpacity
@@ -364,5 +506,46 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginTop: 5,
+  },
+
+  cancelButton: {
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: '#b00020',
+    padding: 13,
+    borderRadius: 10,
+  },
+
+  cancelText: {
+    color: '#b00020',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+
+  completeButton: {
+    backgroundColor: '#222',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 12,
+  },
+
+  completeButtonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+
+  cancelRideButton: {
+    borderWidth: 1,
+    borderColor: '#b00020',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 12,
+  },
+
+  cancelRideText: {
+    color: '#b00020',
+    textAlign: 'center',
+    fontWeight: 'bold',
   },
 });
