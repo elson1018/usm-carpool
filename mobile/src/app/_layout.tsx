@@ -64,6 +64,27 @@ export default function RootLayout() {
           title: 'Find Ride',
         }}
       />
+
+      <Stack.Screen
+        name="my-rides"
+        options={{
+          title: 'My Rides',
+        }}
+      />
+
+      <Stack.Screen
+        name="ride/[id]"
+        options={{
+          title: 'Ride Details',
+        }}
+      />
+
+      <Stack.Screen
+        name="ride-requests/[rideId]"
+        options={{
+          title: 'Passenger Requests',
+        }}
+      />
     </Stack>
   );
 }

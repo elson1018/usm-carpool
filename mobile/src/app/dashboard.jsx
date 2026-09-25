@@ -150,6 +150,17 @@ export default function DashboardScreen() {
             My Vehicles
         </Text>
       </TouchableOpacity>
+      
+      <TouchableOpacity
+        onPress={() =>
+          router.push('/my-rides')
+        }
+        style={styles.secondaryButton}
+      >
+        <Text style={styles.secondaryText}>
+          My Rides
+        </Text>
+      </TouchableOpacity>
 
       <TouchableOpacity
         onPress={logout}
