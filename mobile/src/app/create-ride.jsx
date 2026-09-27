@@ -1,4 +1,3 @@
-// Offer a Ride screen: allows drivers to select their vehicle and publish a new carpool ride
 import { useEffect, useState } from 'react';
 
 import {
@@ -12,15 +11,28 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
-import { router } from 'expo-router';
+import {
+  router,
+  useLocalSearchParams,
+} from 'expo-router';
+
 import { supabase } from '../lib/supabase';
 
 export default function CreateRideScreen() {
+  const params = useLocalSearchParams();
+
   const [vehicles, setVehicles] = useState([]);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
 
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+
+  const [originLatitude, setOriginLatitude] = useState(null);
+  const [originLongitude, setOriginLongitude] = useState(null);
+
+  const [destinationLatitude, setDestinationLatitude] = useState(null);
+  const [destinationLongitude, setDestinationLongitude] = useState(null);
+
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [seats, setSeats] = useState('');
@@ -30,12 +42,54 @@ export default function CreateRideScreen() {
   const [loadingVehicles, setLoadingVehicles] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Load driver's vehicles on mount
+  // Load driver's vehicles
   useEffect(() => {
     loadVehicles();
   }, []);
 
-  // Fetch registered vehicles for the logged-in driver
+  // Receive location selected from location-picker.jsx
+  useEffect(() => {
+    if (
+      !params.type ||
+      !params.latitude ||
+      !params.longitude
+    ) {
+      return;
+    }
+
+    const latitude = Number(params.latitude);
+    const longitude = Number(params.longitude);
+
+    if (
+      Number.isNaN(latitude) ||
+      Number.isNaN(longitude)
+    ) {
+      return;
+    }
+
+    if (params.type === 'origin') {
+      setOriginLatitude(latitude);
+      setOriginLongitude(longitude);
+
+      setOrigin(
+        `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+      );
+    }
+
+    if (params.type === 'destination') {
+      setDestinationLatitude(latitude);
+      setDestinationLongitude(longitude);
+
+      setDestination(
+        `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+      );
+    }
+  }, [
+    params.type,
+    params.latitude,
+    params.longitude,
+  ]);
+
   async function loadVehicles() {
     const {
       data: { user },
@@ -58,7 +112,10 @@ export default function CreateRideScreen() {
         'Unable to load vehicles.'
       );
 
-      console.log('Vehicle error:', error.message);
+      console.log(
+        'Vehicle error:',
+        error.message
+      );
 
       setLoadingVehicles(false);
       return;
@@ -73,7 +130,6 @@ export default function CreateRideScreen() {
     setLoadingVehicles(false);
   }
 
-  // Validate form inputs, seat limits, and publish the ride to Supabase
   async function createRide() {
     if (!selectedVehicle) {
       Alert.alert(
@@ -94,6 +150,19 @@ export default function CreateRideScreen() {
       Alert.alert(
         'Missing information',
         'Please complete all required fields.'
+      );
+      return;
+    }
+
+    if (
+      originLatitude === null ||
+      originLongitude === null ||
+      destinationLatitude === null ||
+      destinationLongitude === null
+    ) {
+      Alert.alert(
+        'Missing location',
+        'Please select both origin and destination on the map.'
       );
       return;
     }
@@ -150,27 +219,23 @@ export default function CreateRideScreen() {
         .from('rides')
         .insert({
           driver_id: user.id,
-
-          vehicle_id:
-            selectedVehicle.id,
+          vehicle_id: selectedVehicle.id,
 
           origin: origin.trim(),
+          origin_latitude: originLatitude,
+          origin_longitude: originLongitude,
 
-          destination:
-            destination.trim(),
+          destination: destination.trim(),
+          destination_latitude: destinationLatitude,
+          destination_longitude: destinationLongitude,
 
           departure_date: date,
-
           departure_time: time,
 
-          available_seats:
-            seatNumber,
-
-          price_per_seat:
-            priceNumber,
+          available_seats: seatNumber,
+          price_per_seat: priceNumber,
 
           notes: notes.trim(),
-
           status: 'available',
         })
         .select()
@@ -201,11 +266,8 @@ export default function CreateRideScreen() {
         [
           {
             text: 'View Rides',
-
             onPress: () =>
-              router.replace(
-                '/find-ride'
-              ),
+              router.replace('/find-ride'),
           },
         ]
       );
@@ -229,7 +291,7 @@ export default function CreateRideScreen() {
       <View style={styles.center}>
         <ActivityIndicator size="large" />
 
-        <Text style={{ marginTop: 10 }}>
+        <Text style={styles.loadingText}>
           Loading vehicles...
         </Text>
       </View>
@@ -263,9 +325,7 @@ export default function CreateRideScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={
-        styles.container
-      }
+      contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.title}>
@@ -295,8 +355,7 @@ export default function CreateRideScreen() {
           ]}
         >
           <Text style={styles.vehicleName}>
-            {vehicle.brand}{' '}
-            {vehicle.model}
+            {vehicle.brand} {vehicle.model}
           </Text>
 
           <Text style={styles.vehicleInfo}>
@@ -314,22 +373,54 @@ export default function CreateRideScreen() {
       </Text>
 
       <TextInput
-        placeholder="e.g. USM Main Campus"
+        placeholder="Choose pickup location"
         value={origin}
         onChangeText={setOrigin}
         style={styles.input}
       />
+
+      <TouchableOpacity
+        onPress={() =>
+          router.push({
+            pathname: '/location-picker',
+            params: {
+              type: 'origin',
+            },
+          })
+        }
+        style={styles.mapPickerButton}
+      >
+        <Text style={styles.mapPickerText}>
+          Pick Origin on Map
+        </Text>
+      </TouchableOpacity>
 
       <Text style={styles.label}>
         To
       </Text>
 
       <TextInput
-        placeholder="e.g. Bayan Lepas"
+        placeholder="Choose destination"
         value={destination}
         onChangeText={setDestination}
         style={styles.input}
       />
+
+      <TouchableOpacity
+        onPress={() =>
+          router.push({
+            pathname: '/location-picker',
+            params: {
+              type: 'destination',
+            },
+          })
+        }
+        style={styles.mapPickerButton}
+      >
+        <Text style={styles.mapPickerText}>
+          Pick Destination on Map
+        </Text>
+      </TouchableOpacity>
 
       <Text style={styles.label}>
         Date
@@ -426,6 +517,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+  },
+
   title: {
     fontSize: 32,
     fontWeight: 'bold',
@@ -447,7 +543,7 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderRadius: 12,
     padding: 15,
-    marginBottom: 18,
+    marginBottom: 12,
     fontSize: 16,
   },
 
@@ -477,6 +573,19 @@ const styles = StyleSheet.create({
   vehicleInfo: {
     color: '#666',
     marginTop: 4,
+  },
+
+  mapPickerButton: {
+    borderWidth: 1,
+    borderColor: '#222',
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 18,
+  },
+
+  mapPickerText: {
+    textAlign: 'center',
+    fontWeight: '600',
   },
 
   button: {

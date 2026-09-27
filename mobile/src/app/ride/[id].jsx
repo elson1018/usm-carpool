@@ -211,6 +211,34 @@ export default function RideDetailsScreen() {
     );
   }
 
+  // Start the ride and transition status to in_progress
+  async function startRide() {
+    const { error } = await supabase
+      .from('rides')
+      .update({
+        status: 'in_progress',
+      })
+      .eq('id', ride.id);
+
+    if (error) {
+      Alert.alert(
+        'Unable to start ride',
+        error.message
+      );
+      return;
+    }
+
+    setRide({
+      ...ride,
+      status: 'in_progress',
+    });
+
+    Alert.alert(
+      'Ride started',
+      'This ride is now in progress.'
+    );
+  }
+
   // Mark the ride as completed in Supabase
   async function completeRide() {
     const { error } = await supabase
@@ -235,7 +263,7 @@ export default function RideDetailsScreen() {
 
     Alert.alert(
       'Ride completed',
-      'This ride has been marked as completed.'
+      'The trip has finished.'
     );
   }
 
@@ -339,8 +367,8 @@ export default function RideDetailsScreen() {
             This is your ride.
           </Text>
 
-          {ride.status === 'available' ||
-          ride.status === 'full' ? (
+          {(ride.status === 'available' ||
+            ride.status === 'full') && (
             <>
               <TouchableOpacity
                 onPress={() =>
@@ -359,11 +387,11 @@ export default function RideDetailsScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={completeRide}
-                style={styles.completeButton}
+                onPress={startRide}
+                style={styles.startButton}
               >
-                <Text style={styles.completeButtonText}>
-                  Mark as Completed
+                <Text style={styles.startButtonText}>
+                  Start Ride
                 </Text>
               </TouchableOpacity>
 
@@ -376,7 +404,30 @@ export default function RideDetailsScreen() {
                 </Text>
               </TouchableOpacity>
             </>
-          ) : null}
+          )}
+
+          {ride.status === 'in_progress' && (
+            <TouchableOpacity
+              onPress={completeRide}
+              style={styles.completeButton}
+            >
+              <Text style={styles.completeButtonText}>
+                Complete Ride
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {ride.status === 'completed' && (
+            <Text style={styles.finishedText}>
+              Ride completed
+            </Text>
+          )}
+
+          {ride.status === 'cancelled' && (
+            <Text style={styles.cancelledText}>
+              Ride cancelled
+            </Text>
+          )}
         </View>
       ) : request ? (
         <View style={styles.statusBox}>
@@ -535,6 +586,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
+  startButton: {
+    backgroundColor: '#222',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 12,
+  },
+
+  startButtonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+
   cancelRideButton: {
     borderWidth: 1,
     borderColor: '#b00020',
@@ -545,6 +609,18 @@ const styles = StyleSheet.create({
 
   cancelRideText: {
     color: '#b00020',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+
+  finishedText: {
+    marginTop: 20,
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+
+  cancelledText: {
+    marginTop: 20,
     textAlign: 'center',
     fontWeight: 'bold',
   },
