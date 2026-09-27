@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useState,
+} from 'react';
 
 import {
   View,
@@ -13,103 +16,97 @@ import {
 
 import {
   router,
-  useLocalSearchParams,
 } from 'expo-router';
 
-import { supabase } from '../lib/supabase';
+import {
+  useRideDraft,
+} from '../context/RideDraftContext';
+
+import {
+  supabase,
+} from '../lib/supabase';
 
 export default function CreateRideScreen() {
-  const params = useLocalSearchParams();
+  const [
+    vehicles,
+    setVehicles,
+  ] = useState([]);
 
-  const [vehicles, setVehicles] = useState([]);
-  const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [
+    selectedVehicle,
+    setSelectedVehicle,
+  ] = useState(null);
 
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
+  const {
+    origin,
+    setOrigin,
 
-  const [originLatitude, setOriginLatitude] = useState(null);
-  const [originLongitude, setOriginLongitude] = useState(null);
+    originLatitude,
+    originLongitude,
 
-  const [destinationLatitude, setDestinationLatitude] = useState(null);
-  const [destinationLongitude, setDestinationLongitude] = useState(null);
+    destination,
+    setDestination,
 
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [seats, setSeats] = useState('');
-  const [price, setPrice] = useState('');
-  const [notes, setNotes] = useState('');
+    destinationLatitude,
+    destinationLongitude,
 
-  const [loadingVehicles, setLoadingVehicles] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+    clearRideDraft,
+  } = useRideDraft();
 
-  // Load driver's vehicles
+  const [date, setDate] =
+    useState('');
+
+  const [time, setTime] =
+    useState('');
+
+  const [seats, setSeats] =
+    useState('');
+
+  const [price, setPrice] =
+    useState('');
+
+  const [notes, setNotes] =
+    useState('');
+
+  const [
+    loadingVehicles,
+    setLoadingVehicles,
+  ] = useState(true);
+
+  const [
+    submitting,
+    setSubmitting,
+  ] = useState(false);
+
   useEffect(() => {
     loadVehicles();
   }, []);
-
-  // Receive location selected from location-picker.jsx
-  useEffect(() => {
-    if (
-      !params.type ||
-      !params.latitude ||
-      !params.longitude
-    ) {
-      return;
-    }
-
-    const latitude =
-      Number(params.latitude);
-
-    const longitude =
-      Number(params.longitude);
-
-    const selectedPlaceName =
-      params.placeName
-        ? String(params.placeName)
-        : `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-
-    if (
-      Number.isNaN(latitude) ||
-      Number.isNaN(longitude)
-    ) {
-      return;
-    }
-
-    if (params.type === 'origin') {
-      setOriginLatitude(latitude);
-      setOriginLongitude(longitude);
-
-      setOrigin(selectedPlaceName);
-    }
-
-    if (params.type === 'destination') {
-      setDestinationLatitude(latitude);
-      setDestinationLongitude(longitude);
-
-      setDestination(selectedPlaceName);
-    }
-  }, [
-    params.type,
-    params.latitude,
-    params.longitude,
-    params.placeName,
-  ]);
 
   async function loadVehicles() {
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser();
+    } =
+      await supabase.auth.getUser();
 
-    if (userError || !user) {
+    if (
+      userError ||
+      !user
+    ) {
       router.replace('/login');
       return;
     }
 
-    const { data, error } = await supabase
+    const {
+      data,
+      error,
+    } = await supabase
       .from('vehicles')
       .select('*')
-      .eq('owner_id', user.id);
+      .eq(
+        'owner_id',
+        user.id
+      );
 
     if (error) {
       Alert.alert(
@@ -126,10 +123,17 @@ export default function CreateRideScreen() {
       return;
     }
 
-    setVehicles(data || []);
+    setVehicles(
+      data || []
+    );
 
-    if (data && data.length > 0) {
-      setSelectedVehicle(data[0]);
+    if (
+      data &&
+      data.length > 0
+    ) {
+      setSelectedVehicle(
+        data[0]
+      );
     }
 
     setLoadingVehicles(false);
@@ -141,6 +145,7 @@ export default function CreateRideScreen() {
         'No vehicle',
         'Please add a vehicle before offering a ride.'
       );
+
       return;
     }
 
@@ -156,6 +161,7 @@ export default function CreateRideScreen() {
         'Missing information',
         'Please complete all required fields.'
       );
+
       return;
     }
 
@@ -169,48 +175,61 @@ export default function CreateRideScreen() {
         'Missing location',
         'Please select both origin and destination on the map.'
       );
+
       return;
     }
 
-    const seatNumber = Number(seats);
-    const priceNumber = Number(price);
+    const seatNumber =
+      Number(seats);
+
+    const priceNumber =
+      Number(price);
 
     if (
-      Number.isNaN(seatNumber) ||
+      Number.isNaN(
+        seatNumber
+      ) ||
       seatNumber < 1
     ) {
       Alert.alert(
         'Invalid seats',
         'Please enter a valid number of seats.'
       );
+
       return;
     }
 
     if (
       seatNumber >
-      selectedVehicle.seat_capacity
+      selectedVehicle
+        .seat_capacity
     ) {
       Alert.alert(
         'Too many seats',
         `This vehicle supports only ${selectedVehicle.seat_capacity} passenger seats.`
       );
+
       return;
     }
 
     if (
-      Number.isNaN(priceNumber) ||
+      Number.isNaN(
+        priceNumber
+      ) ||
       priceNumber < 0
     ) {
       Alert.alert(
         'Invalid price',
         'Please enter a valid price.'
       );
+
       return;
     }
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } =
+      await supabase.auth.getUser();
 
     if (!user) {
       router.replace('/login');
@@ -220,28 +239,53 @@ export default function CreateRideScreen() {
     try {
       setSubmitting(true);
 
-      const { data, error } = await supabase
+      const {
+        data,
+        error,
+      } = await supabase
         .from('rides')
         .insert({
-          driver_id: user.id,
-          vehicle_id: selectedVehicle.id,
+          driver_id:
+            user.id,
 
-          origin: origin.trim(),
-          origin_latitude: originLatitude,
-          origin_longitude: originLongitude,
+          vehicle_id:
+            selectedVehicle.id,
 
-          destination: destination.trim(),
-          destination_latitude: destinationLatitude,
-          destination_longitude: destinationLongitude,
+          origin:
+            origin.trim(),
 
-          departure_date: date,
-          departure_time: time,
+          origin_latitude:
+            originLatitude,
 
-          available_seats: seatNumber,
-          price_per_seat: priceNumber,
+          origin_longitude:
+            originLongitude,
 
-          notes: notes.trim(),
-          status: 'available',
+          destination:
+            destination.trim(),
+
+          destination_latitude:
+            destinationLatitude,
+
+          destination_longitude:
+            destinationLongitude,
+
+          departure_date:
+            date,
+
+          departure_time:
+            time,
+
+          available_seats:
+            seatNumber,
+
+          price_per_seat:
+            priceNumber,
+
+          notes:
+            notes.trim(),
+
+          status:
+            'available',
         })
         .select()
         .single();
@@ -265,14 +309,29 @@ export default function CreateRideScreen() {
         data
       );
 
+      const routeText =
+        `${origin} → ${destination}`;
+
+      clearRideDraft();
+
+      setDate('');
+      setTime('');
+      setSeats('');
+      setPrice('');
+      setNotes('');
+
       Alert.alert(
         'Ride created',
-        `${origin} → ${destination}`,
+        routeText,
         [
           {
-            text: 'View Rides',
+            text:
+              'View Rides',
+
             onPress: () =>
-              router.replace('/find-ride'),
+              router.replace(
+                '/find-ride'
+              ),
           },
         ]
       );
@@ -291,36 +350,71 @@ export default function CreateRideScreen() {
     }
   }
 
-  if (loadingVehicles) {
+  if (
+    loadingVehicles
+  ) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
+      <View
+        style={
+          styles.center
+        }
+      >
+        <ActivityIndicator
+          size="large"
+        />
 
-        <Text style={styles.loadingText}>
+        <Text
+          style={
+            styles.loadingText
+          }
+        >
           Loading vehicles...
         </Text>
       </View>
     );
   }
 
-  if (vehicles.length === 0) {
+  if (
+    vehicles.length === 0
+  ) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.noVehicleTitle}>
+      <View
+        style={
+          styles.center
+        }
+      >
+        <Text
+          style={
+            styles.noVehicleTitle
+          }
+        >
           No vehicle registered
         </Text>
 
-        <Text style={styles.noVehicleText}>
-          Add a vehicle before offering a ride.
+        <Text
+          style={
+            styles.noVehicleText
+          }
+        >
+          Add a vehicle before
+          offering a ride.
         </Text>
 
         <TouchableOpacity
           onPress={() =>
-            router.push('/vehicle')
+            router.push(
+              '/vehicle'
+            )
           }
-          style={styles.button}
+          style={
+            styles.button
+          }
         >
-          <Text style={styles.buttonText}>
+          <Text
+            style={
+              styles.buttonText
+            }
+          >
             Add Vehicle
           </Text>
         </TouchableOpacity>
@@ -330,157 +424,281 @@ export default function CreateRideScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.container}
+      contentContainerStyle={
+        styles.container
+      }
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>
+      <Text
+        style={
+          styles.title
+        }
+      >
         Offer a Ride
       </Text>
 
-      <Text style={styles.subtitle}>
-        Share your journey with other USM students.
+      <Text
+        style={
+          styles.subtitle
+        }
+      >
+        Share your journey
+        with other USM students.
       </Text>
 
-      <Text style={styles.label}>
+      <Text
+        style={
+          styles.label
+        }
+      >
         Select Vehicle
       </Text>
 
-      {vehicles.map((vehicle) => (
-        <TouchableOpacity
-          key={vehicle.id}
-          onPress={() =>
-            setSelectedVehicle(vehicle)
-          }
-          style={[
-            styles.vehicleCard,
+      {vehicles.map(
+        (vehicle) => (
+          <TouchableOpacity
+            key={
+              vehicle.id
+            }
 
-            selectedVehicle?.id ===
-              vehicle.id &&
-              styles.selectedVehicle,
-          ]}
-        >
-          <Text style={styles.vehicleName}>
-            {vehicle.brand} {vehicle.model}
-          </Text>
+            onPress={() =>
+              setSelectedVehicle(
+                vehicle
+              )
+            }
 
-          <Text style={styles.vehicleInfo}>
-            {vehicle.colour}
-          </Text>
+            style={[
+              styles.vehicleCard,
 
-          <Text style={styles.vehicleInfo}>
-            {vehicle.plate_number}
-          </Text>
-        </TouchableOpacity>
-      ))}
+              selectedVehicle
+                ?.id ===
+                vehicle.id &&
+                styles
+                  .selectedVehicle,
+            ]}
+          >
+            <Text
+              style={
+                styles.vehicleName
+              }
+            >
+              {vehicle.brand}{' '}
+              {vehicle.model}
+            </Text>
 
-      <Text style={styles.label}>
+            <Text
+              style={
+                styles.vehicleInfo
+              }
+            >
+              {vehicle.colour}
+            </Text>
+
+            <Text
+              style={
+                styles.vehicleInfo
+              }
+            >
+              {
+                vehicle
+                  .plate_number
+              }
+            </Text>
+          </TouchableOpacity>
+        )
+      )}
+
+      <Text
+        style={
+          styles.label
+        }
+      >
         From
       </Text>
 
       <TextInput
         placeholder="Choose pickup location"
         value={origin}
-        onChangeText={setOrigin}
-        style={styles.input}
+        onChangeText={
+          setOrigin
+        }
+        editable={false}
+        style={
+          styles.input
+        }
       />
 
       <TouchableOpacity
         onPress={() =>
           router.push({
-            pathname: '/location-picker',
+            pathname:
+              '/location-picker',
+
             params: {
-              type: 'origin',
+              type:
+                'origin',
             },
           })
         }
-        style={styles.mapPickerButton}
+
+        style={
+          styles
+            .mapPickerButton
+        }
       >
-        <Text style={styles.mapPickerText}>
+        <Text
+          style={
+            styles
+              .mapPickerText
+          }
+        >
           Pick Origin on Map
         </Text>
       </TouchableOpacity>
 
-      <Text style={styles.label}>
+      <Text
+        style={
+          styles.label
+        }
+      >
         To
       </Text>
 
       <TextInput
         placeholder="Choose destination"
-        value={destination}
-        onChangeText={setDestination}
-        style={styles.input}
+        value={
+          destination
+        }
+        onChangeText={
+          setDestination
+        }
+        editable={false}
+        style={
+          styles.input
+        }
       />
 
       <TouchableOpacity
         onPress={() =>
           router.push({
-            pathname: '/location-picker',
+            pathname:
+              '/location-picker',
+
             params: {
-              type: 'destination',
+              type:
+                'destination',
             },
           })
         }
-        style={styles.mapPickerButton}
+
+        style={
+          styles
+            .mapPickerButton
+        }
       >
-        <Text style={styles.mapPickerText}>
-          Pick Destination on Map
+        <Text
+          style={
+            styles
+              .mapPickerText
+          }
+        >
+          Pick Destination
+          on Map
         </Text>
       </TouchableOpacity>
 
-      <Text style={styles.label}>
+      <Text
+        style={
+          styles.label
+        }
+      >
         Date
       </Text>
 
       <TextInput
         placeholder="2026-09-27"
         value={date}
-        onChangeText={setDate}
-        style={styles.input}
+        onChangeText={
+          setDate
+        }
+        style={
+          styles.input
+        }
       />
 
-      <Text style={styles.label}>
+      <Text
+        style={
+          styles.label
+        }
+      >
         Departure Time
       </Text>
 
       <TextInput
         placeholder="17:00"
         value={time}
-        onChangeText={setTime}
-        style={styles.input}
+        onChangeText={
+          setTime
+        }
+        style={
+          styles.input
+        }
       />
 
-      <Text style={styles.label}>
+      <Text
+        style={
+          styles.label
+        }
+      >
         Available Seats
       </Text>
 
       <TextInput
         placeholder="3"
         value={seats}
-        onChangeText={setSeats}
+        onChangeText={
+          setSeats
+        }
         keyboardType="number-pad"
-        style={styles.input}
+        style={
+          styles.input
+        }
       />
 
-      <Text style={styles.label}>
+      <Text
+        style={
+          styles.label
+        }
+      >
         Price Per Seat (RM)
       </Text>
 
       <TextInput
         placeholder="5"
         value={price}
-        onChangeText={setPrice}
+        onChangeText={
+          setPrice
+        }
         keyboardType="decimal-pad"
-        style={styles.input}
+        style={
+          styles.input
+        }
       />
 
-      <Text style={styles.label}>
+      <Text
+        style={
+          styles.label
+        }
+      >
         Notes
       </Text>
 
       <TextInput
         placeholder="Optional notes"
         value={notes}
-        onChangeText={setNotes}
+        onChangeText={
+          setNotes
+        }
         multiline
         style={[
           styles.input,
@@ -489,16 +707,27 @@ export default function CreateRideScreen() {
       />
 
       <TouchableOpacity
-        onPress={createRide}
-        disabled={submitting}
+        onPress={
+          createRide
+        }
+
+        disabled={
+          submitting
+        }
+
         style={[
           styles.button,
+
           submitting && {
             opacity: 0.5,
           },
         ]}
       >
-        <Text style={styles.buttonText}>
+        <Text
+          style={
+            styles.buttonText
+          }
+        >
           {submitting
             ? 'Publishing...'
             : 'Publish Ride'}
@@ -508,115 +737,129 @@ export default function CreateRideScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 24,
-    paddingTop: 50,
-    paddingBottom: 50,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      padding: 24,
+      paddingTop: 50,
+      paddingBottom: 50,
+    },
 
-  center: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+    center: {
+      flex: 1,
+      padding: 24,
+      justifyContent:
+        'center',
+      alignItems:
+        'center',
+    },
 
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
-  },
+    loadingText: {
+      marginTop: 10,
+      color: '#666',
+    },
 
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-  },
+    title: {
+      fontSize: 32,
+      fontWeight:
+        'bold',
+    },
 
-  subtitle: {
-    color: '#666',
-    marginTop: 8,
-    marginBottom: 30,
-  },
+    subtitle: {
+      color: '#666',
+      marginTop: 8,
+      marginBottom: 30,
+    },
 
-  label: {
-    fontWeight: '600',
-    marginBottom: 8,
-  },
+    label: {
+      fontWeight: '600',
+      marginBottom: 8,
+    },
 
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 12,
-    fontSize: 16,
-  },
+    input: {
+      borderWidth: 1,
+      borderColor: '#ccc',
+      borderRadius: 12,
+      padding: 15,
+      marginBottom: 12,
+      fontSize: 16,
+      backgroundColor:
+        '#fafafa',
+    },
 
-  notes: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
+    notes: {
+      height: 100,
+      textAlignVertical:
+        'top',
+    },
 
-  vehicleCard: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 12,
-  },
+    vehicleCard: {
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 12,
+      padding: 15,
+      marginBottom: 12,
+    },
 
-  selectedVehicle: {
-    borderWidth: 2,
-    borderColor: '#222',
-  },
+    selectedVehicle: {
+      borderWidth: 2,
+      borderColor: '#222',
+    },
 
-  vehicleName: {
-    fontSize: 17,
-    fontWeight: 'bold',
-  },
+    vehicleName: {
+      fontSize: 17,
+      fontWeight:
+        'bold',
+    },
 
-  vehicleInfo: {
-    color: '#666',
-    marginTop: 4,
-  },
+    vehicleInfo: {
+      color: '#666',
+      marginTop: 4,
+    },
 
-  mapPickerButton: {
-    borderWidth: 1,
-    borderColor: '#222',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 18,
-  },
+    mapPickerButton: {
+      borderWidth: 1,
+      borderColor: '#222',
+      padding: 14,
+      borderRadius: 10,
+      marginBottom: 18,
+    },
 
-  mapPickerText: {
-    textAlign: 'center',
-    fontWeight: '600',
-  },
+    mapPickerText: {
+      textAlign:
+        'center',
+      fontWeight: '600',
+    },
 
-  button: {
-    backgroundColor: '#222',
-    padding: 17,
-    borderRadius: 12,
-    marginTop: 10,
-    width: '100%',
-  },
+    button: {
+      backgroundColor:
+        '#222',
+      padding: 17,
+      borderRadius: 12,
+      marginTop: 10,
+      width: '100%',
+    },
 
-  buttonText: {
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontSize: 17,
-  },
+    buttonText: {
+      color: 'white',
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+      fontSize: 17,
+    },
 
-  noVehicleTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
+    noVehicleTitle: {
+      fontSize: 24,
+      fontWeight:
+        'bold',
+    },
 
-  noVehicleText: {
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 10,
-    marginBottom: 20,
-  },
-});
+    noVehicleText: {
+      color: '#666',
+      textAlign:
+        'center',
+      marginTop: 10,
+      marginBottom: 20,
+    },
+  });

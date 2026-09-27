@@ -1,4 +1,6 @@
-// Ride Requests screen: allows drivers to review, accept, or reject passenger seat requests for their ride
+// Ride Requests screen: allows drivers to review,
+// accept, or reject passenger seat requests for their ride
+
 import { useEffect, useState } from 'react';
 
 import {
@@ -16,6 +18,10 @@ import {
   router,
 } from 'expo-router';
 
+import MapView, {
+  Marker,
+} from 'react-native-maps';
+
 import { supabase } from '../../lib/supabase';
 
 export default function RideRequestsScreen() {
@@ -25,12 +31,30 @@ export default function RideRequestsScreen() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load ride details and requests on mount or when rideId changes
+  const hasMapCoordinates =
+    ride?.origin_latitude != null &&
+    ride?.origin_longitude != null &&
+    ride?.destination_latitude != null &&
+    ride?.destination_longitude != null;
+
+  const originCoordinate = hasMapCoordinates
+    ? {
+        latitude: Number(ride.origin_latitude),
+        longitude: Number(ride.origin_longitude),
+      }
+    : null;
+
+  const destinationCoordinate = hasMapCoordinates
+    ? {
+        latitude: Number(ride.destination_latitude),
+        longitude: Number(ride.destination_longitude),
+      }
+    : null;
+
   useEffect(() => {
     loadRequests();
   }, [rideId]);
 
-  // Fetch ride info (confirming ownership) and passenger requests with profile data
   async function loadRequests() {
     setLoading(true);
 
@@ -75,23 +99,23 @@ export default function RideRequestsScreen() {
     setRide(rideData);
 
     const {
-        data,
-        error,
-        } = await supabase
-        .from('ride_requests')
-        .select(`
-            *,
-            profiles (
-            full_name,
-            student_id,
-            faculty,
-            average_rating
-            )
-        `)
-        .eq('ride_id', rideId)
-        .order('created_at', {
-            ascending: true,
-        });
+      data,
+      error,
+    } = await supabase
+      .from('ride_requests')
+      .select(`
+        *,
+        profiles (
+          full_name,
+          student_id,
+          faculty,
+          average_rating
+        )
+      `)
+      .eq('ride_id', rideId)
+      .order('created_at', {
+        ascending: true,
+      });
 
     if (error) {
       Alert.alert(
@@ -107,7 +131,6 @@ export default function RideRequestsScreen() {
     setLoading(false);
   }
 
-  // Accept a passenger request and update available seats on the ride
   async function acceptRequest(request) {
     if (!ride) return;
 
@@ -175,7 +198,6 @@ export default function RideRequestsScreen() {
     loadRequests();
   }
 
-  // Reject a passenger request
   async function rejectRequest(request) {
     const { error } = await supabase
       .from('ride_requests')
@@ -215,84 +237,213 @@ export default function RideRequestsScreen() {
         Passenger Requests
       </Text>
 
-      {requests.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.emptyTitle}>
-            No requests yet
-          </Text>
+      <FlatList
+        data={requests}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
 
-          <Text style={styles.emptyText}>
-            Passenger requests will appear here.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={requests}
-          keyExtractor={(item) =>
-            item.id
-          }
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.label}>
-  Passenger
-</Text>
-
-<Text style={styles.passengerName}>
-  {item.profiles?.full_name || 'USM Student'}
-</Text>
-
-<Text style={styles.info}>
-  Student ID: {item.profiles?.student_id || '-'}
-</Text>
-
-<Text style={styles.info}>
-  Faculty: {item.profiles?.faculty || '-'}
-</Text>
-
-<Text style={styles.info}>
-  Rating:{' '}
-  {item.profiles?.average_rating || 0}
-</Text>
-
-              <Text style={styles.info}>
-                Seats requested:{' '}
-                {item.seats_requested}
+        ListHeaderComponent={
+          ride ? (
+            <View style={styles.rideCard}>
+              <Text style={styles.routeTitle}>
+                Ride Route
               </Text>
 
-              <Text style={styles.info}>
-                Status:{' '}
-                {item.status.toUpperCase()}
+              <Text style={styles.routeLabel}>
+                From
               </Text>
 
-              {item.status === 'pending' ? (
-                <View style={styles.actions}>
-                  <TouchableOpacity
-                    onPress={() =>
-                      acceptRequest(item)
-                    }
-                    style={styles.acceptButton}
-                  >
-                    <Text style={styles.acceptText}>
-                      Accept
-                    </Text>
-                  </TouchableOpacity>
+              <Text style={styles.routeValue}>
+                {ride.origin}
+              </Text>
 
-                  <TouchableOpacity
-                    onPress={() =>
-                      rejectRequest(item)
-                    }
-                    style={styles.rejectButton}
-                  >
-                    <Text style={styles.rejectText}>
-                      Reject
-                    </Text>
-                  </TouchableOpacity>
+              <Text style={styles.routeLabel}>
+                To
+              </Text>
+
+              <Text style={styles.routeValue}>
+                {ride.destination}
+              </Text>
+
+              <View style={styles.rideInfoRow}>
+                <View style={styles.rideInfoBox}>
+                  <Text style={styles.infoLabel}>
+                    Date
+                  </Text>
+
+                  <Text style={styles.infoValue}>
+                    {ride.departure_date}
+                  </Text>
                 </View>
-              ) : null}
+
+                <View style={styles.rideInfoBox}>
+                  <Text style={styles.infoLabel}>
+                    Time
+                  </Text>
+
+                  <Text style={styles.infoValue}>
+                    {ride.departure_time}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.rideInfoRow}>
+                <View style={styles.rideInfoBox}>
+                  <Text style={styles.infoLabel}>
+                    Available Seats
+                  </Text>
+
+                  <Text style={styles.infoValue}>
+                    {ride.available_seats}
+                  </Text>
+                </View>
+
+                <View style={styles.rideInfoBox}>
+                  <Text style={styles.infoLabel}>
+                    Status
+                  </Text>
+
+                  <Text style={styles.infoValue}>
+                    {ride.status?.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              {hasMapCoordinates ? (
+                <MapView
+                  style={styles.map}
+                  initialRegion={{
+                    latitude:
+                      (originCoordinate.latitude +
+                        destinationCoordinate.latitude) /
+                      2,
+
+                    longitude:
+                      (originCoordinate.longitude +
+                        destinationCoordinate.longitude) /
+                      2,
+
+                    latitudeDelta: Math.max(
+                      Math.abs(
+                        originCoordinate.latitude -
+                          destinationCoordinate.latitude
+                      ) * 2,
+                      0.03
+                    ),
+
+                    longitudeDelta: Math.max(
+                      Math.abs(
+                        originCoordinate.longitude -
+                          destinationCoordinate.longitude
+                      ) * 2,
+                      0.03
+                    ),
+                  }}
+                >
+                  <Marker
+                    coordinate={originCoordinate}
+                    title="Pickup"
+                    description={ride.origin}
+                  />
+
+                  <Marker
+                    coordinate={destinationCoordinate}
+                    title="Destination"
+                    description={ride.destination}
+                  />
+                </MapView>
+              ) : (
+                <View style={styles.noMapBox}>
+                  <Text style={styles.noMapText}>
+                    Map location is not available for this ride.
+                  </Text>
+                </View>
+              )}
+
+              <Text style={styles.requestHeading}>
+                Requests
+              </Text>
             </View>
-          )}
-        />
-      )}
+          ) : null
+        }
+
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>
+              No requests yet
+            </Text>
+
+            <Text style={styles.emptyText}>
+              Passenger requests will appear here.
+            </Text>
+          </View>
+        }
+
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <Text style={styles.label}>
+              Passenger
+            </Text>
+
+            <Text style={styles.passengerName}>
+              {item.profiles?.full_name ||
+                'USM Student'}
+            </Text>
+
+            <Text style={styles.info}>
+              Student ID:{' '}
+              {item.profiles?.student_id || '-'}
+            </Text>
+
+            <Text style={styles.info}>
+              Faculty:{' '}
+              {item.profiles?.faculty || '-'}
+            </Text>
+
+            <Text style={styles.info}>
+              Rating:{' '}
+              {item.profiles?.average_rating || 0}
+            </Text>
+
+            <Text style={styles.info}>
+              Seats requested:{' '}
+              {item.seats_requested}
+            </Text>
+
+            <Text style={styles.info}>
+              Status:{' '}
+              {item.status.toUpperCase()}
+            </Text>
+
+            {item.status === 'pending' && (
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  onPress={() =>
+                    acceptRequest(item)
+                  }
+                  style={styles.acceptButton}
+                >
+                  <Text style={styles.acceptText}>
+                    Accept
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    rejectRequest(item)
+                  }
+                  style={styles.rejectButton}
+                >
+                  <Text style={styles.rejectText}>
+                    Reject
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+      />
     </View>
   );
 }
@@ -300,8 +451,13 @@ export default function RideRequestsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+    paddingHorizontal: 24,
     paddingTop: 50,
+    backgroundColor: 'white',
+  },
+
+  listContent: {
+    paddingBottom: 40,
   },
 
   center: {
@@ -313,7 +469,83 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 30,
     fontWeight: 'bold',
-    marginBottom: 25,
+    marginBottom: 20,
+  },
+
+  rideCard: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 20,
+  },
+
+  routeTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 14,
+  },
+
+  routeLabel: {
+    color: '#666',
+    marginTop: 8,
+  },
+
+  routeValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+
+  rideInfoRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 15,
+  },
+
+  rideInfoBox: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 10,
+    padding: 12,
+  },
+
+  infoLabel: {
+    color: '#666',
+    fontSize: 13,
+  },
+
+  infoValue: {
+    fontWeight: '600',
+    marginTop: 4,
+  },
+
+  map: {
+    width: '100%',
+    height: 230,
+    borderRadius: 12,
+    marginTop: 18,
+  },
+
+  noMapBox: {
+    marginTop: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+
+  noMapText: {
+    color: '#666',
+    textAlign: 'center',
+  },
+
+  requestHeading: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 22,
   },
 
   card: {
@@ -328,8 +560,9 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 
-  value: {
-    fontWeight: '600',
+  passengerName: {
+    fontSize: 18,
+    fontWeight: 'bold',
     marginTop: 4,
   },
 
@@ -369,6 +602,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+
   emptyTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -377,11 +615,6 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#666',
     marginTop: 8,
-  },
-
-  passengerName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 4,
+    textAlign: 'center',
   },
 });

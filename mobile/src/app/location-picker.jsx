@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useState,
+} from 'react';
 
 import {
   View,
@@ -20,20 +23,43 @@ import {
   useLocalSearchParams,
 } from 'expo-router';
 
+import {
+  useRideDraft,
+} from '../context/RideDraftContext';
+
 export default function LocationPickerScreen() {
-  const { type } = useLocalSearchParams();
+  const { type } =
+    useLocalSearchParams();
 
-  const [selectedLocation, setSelectedLocation] =
-    useState(null);
+  const {
+    setOrigin,
+    setOriginLatitude,
+    setOriginLongitude,
 
-  const [placeName, setPlaceName] =
-    useState('');
+    setDestination,
+    setDestinationLatitude,
+    setDestinationLongitude,
+  } = useRideDraft();
 
-  const [loadingAddress, setLoadingAddress] =
-    useState(false);
+  const [
+    selectedLocation,
+    setSelectedLocation,
+  ] = useState(null);
 
-  const [hasPermission, setHasPermission] =
-    useState(false);
+  const [
+    placeName,
+    setPlaceName,
+  ] = useState('');
+
+  const [
+    loadingAddress,
+    setLoadingAddress,
+  ] = useState(false);
+
+  const [
+    hasPermission,
+    setHasPermission,
+  ] = useState(false);
 
   useEffect(() => {
     requestLocationPermission();
@@ -42,7 +68,8 @@ export default function LocationPickerScreen() {
   async function requestLocationPermission() {
     try {
       const { status } =
-        await Location.requestForegroundPermissionsAsync();
+        await Location
+          .requestForegroundPermissionsAsync();
 
       if (status === 'granted') {
         setHasPermission(true);
@@ -79,7 +106,8 @@ export default function LocationPickerScreen() {
     try {
       if (!hasPermission) {
         const { status } =
-          await Location.requestForegroundPermissionsAsync();
+          await Location
+            .requestForegroundPermissionsAsync();
 
         if (status !== 'granted') {
           Alert.alert(
@@ -100,21 +128,11 @@ export default function LocationPickerScreen() {
           longitude,
         });
 
-      console.log(
-        'REVERSE GEOCODE RESULT:',
-        results
-      );
-
       if (
         results &&
         results.length > 0
       ) {
         const address = results[0];
-
-        console.log(
-          'ADDRESS:',
-          address
-        );
 
         const addressParts = [
           address.name,
@@ -130,21 +148,17 @@ export default function LocationPickerScreen() {
             item.trim() !== ''
         );
 
-        const uniqueAddressParts =
-          [...new Set(addressParts)];
+        const uniqueParts = [
+          ...new Set(addressParts),
+        ];
 
         const formattedAddress =
-          uniqueAddressParts.join(', ');
+          uniqueParts.join(', ');
 
-        if (formattedAddress) {
-          setPlaceName(
-            formattedAddress
-          );
-        } else {
-          setPlaceName(
+        setPlaceName(
+          formattedAddress ||
             'Selected Location'
-          );
-        }
+        );
       } else {
         setPlaceName(
           'Selected Location'
@@ -152,13 +166,8 @@ export default function LocationPickerScreen() {
       }
     } catch (error) {
       console.log(
-        'REVERSE GEOCODING ERROR:',
+        'Reverse geocoding error:',
         error
-      );
-
-      Alert.alert(
-        'Address unavailable',
-        'The map location was selected, but the address could not be identified.'
       );
 
       setPlaceName(
@@ -179,38 +188,47 @@ export default function LocationPickerScreen() {
       return;
     }
 
-    router.replace({
-      pathname: '/create-ride',
+    const finalPlaceName =
+      placeName || 'Selected Location';
 
-      params: {
-        type,
+    if (type === 'origin') {
+      setOrigin(finalPlaceName);
 
-        latitude:
-          selectedLocation.latitude.toString(),
+      setOriginLatitude(
+        selectedLocation.latitude
+      );
 
-        longitude:
-          selectedLocation.longitude.toString(),
+      setOriginLongitude(
+        selectedLocation.longitude
+      );
+    }
 
-        placeName:
-          placeName || 'Selected Location',
-      },
-    });
+    if (type === 'destination') {
+      setDestination(finalPlaceName);
+
+      setDestinationLatitude(
+        selectedLocation.latitude
+      );
+
+      setDestinationLongitude(
+        selectedLocation.longitude
+      );
+    }
+
+    router.back();
   }
 
   return (
     <View style={styles.container}>
       <MapView
         style={styles.map}
-
         initialRegion={{
           latitude: 5.3556,
           longitude: 100.3025,
           latitudeDelta: 0.06,
           longitudeDelta: 0.06,
         }}
-
         onPress={handleMapPress}
-
         showsUserLocation={
           hasPermission
         }
@@ -220,13 +238,11 @@ export default function LocationPickerScreen() {
             coordinate={
               selectedLocation
             }
-
             title={
               type === 'destination'
                 ? 'Destination'
                 : 'Pickup'
             }
-
             description={
               placeName
             }
@@ -265,20 +281,20 @@ export default function LocationPickerScreen() {
                 </Text>
 
                 <Text style={styles.coordinates}>
-                  {selectedLocation.latitude.toFixed(6)}
+                  {selectedLocation.latitude.toFixed(
+                    6
+                  )}
                   {', '}
-                  {selectedLocation.longitude.toFixed(6)}
+                  {selectedLocation.longitude.toFixed(
+                    6
+                  )}
                 </Text>
               </>
             )}
 
             <TouchableOpacity
               onPress={confirmLocation}
-
-              disabled={
-                loadingAddress
-              }
-
+              disabled={loadingAddress}
               style={[
                 styles.button,
 
@@ -298,60 +314,61 @@ export default function LocationPickerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
 
-  map: {
-    flex: 1,
-  },
+    map: {
+      flex: 1,
+    },
 
-  bottomPanel: {
-    padding: 20,
-    backgroundColor: 'white',
-  },
+    bottomPanel: {
+      padding: 20,
+      backgroundColor: 'white',
+    },
 
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
+    title: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      marginBottom: 12,
+    },
 
-  help: {
-    color: '#666',
-  },
+    help: {
+      color: '#666',
+    },
 
-  locationName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 5,
-  },
+    locationName: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 5,
+    },
 
-  coordinates: {
-    color: '#666',
-  },
+    coordinates: {
+      color: '#666',
+    },
 
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+    loadingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
 
-  loadingText: {
-    marginLeft: 10,
-    color: '#666',
-  },
+    loadingText: {
+      marginLeft: 10,
+      color: '#666',
+    },
 
-  button: {
-    marginTop: 15,
-    backgroundColor: '#222',
-    padding: 15,
-    borderRadius: 10,
-  },
+    button: {
+      marginTop: 15,
+      backgroundColor: '#222',
+      padding: 15,
+      borderRadius: 10,
+    },
 
-  buttonText: {
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-});
+    buttonText: {
+      color: 'white',
+      textAlign: 'center',
+      fontWeight: 'bold',
+    },
+  });
