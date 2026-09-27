@@ -1,5 +1,11 @@
-// Ride Details screen: displays full information about a selected ride and allows passengers to request a seat
-import { useEffect, useState } from 'react';
+// Ride Details screen:
+// shows ride information, actual road route,
+// passenger request actions, and driver controls.
+
+import {
+  useEffect,
+  useState,
+} from 'react';
 
 import {
   View,
@@ -16,30 +22,124 @@ import {
   router,
 } from 'expo-router';
 
-import { supabase } from '../../lib/supabase';
+import MapView, {
+  Marker,
+  Polyline,
+} from 'react-native-maps';
+
+import {
+  supabase,
+} from '../../lib/supabase';
 
 export default function RideDetailsScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } =
+    useLocalSearchParams();
 
-  const [ride, setRide] = useState(null);
-  const [user, setUser] = useState(null);
-  const [request, setRequest] = useState(null);
+  const [ride, setRide] =
+    useState(null);
 
-  const [loading, setLoading] = useState(true);
-  const [requesting, setRequesting] = useState(false);
+  const [user, setUser] =
+    useState(null);
 
-  // Fetch ride details whenever the screen loads or route parameter changes
+  const [request, setRequest] =
+    useState(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [
+    requesting,
+    setRequesting,
+  ] = useState(false);
+
+  // Route states
+
+  const [
+    routeCoordinates,
+    setRouteCoordinates,
+  ] = useState([]);
+
+  const [
+    routeDistance,
+    setRouteDistance,
+  ] = useState(null);
+
+  const [
+    routeDuration,
+    setRouteDuration,
+  ] = useState(null);
+
+  const [
+    routeLoading,
+    setRouteLoading,
+  ] = useState(false);
+
+  const [
+    routeError,
+    setRouteError,
+  ] = useState('');
+
+  const hasMapCoordinates =
+    ride?.origin_latitude != null &&
+    ride?.origin_longitude != null &&
+    ride?.destination_latitude != null &&
+    ride?.destination_longitude != null;
+
+  const originCoordinate =
+    hasMapCoordinates
+      ? {
+          latitude: Number(
+            ride.origin_latitude
+          ),
+
+          longitude: Number(
+            ride.origin_longitude
+          ),
+        }
+      : null;
+
+  const destinationCoordinate =
+    hasMapCoordinates
+      ? {
+          latitude: Number(
+            ride.destination_latitude
+          ),
+
+          longitude: Number(
+            ride.destination_longitude
+          ),
+        }
+      : null;
+
   useEffect(() => {
     loadPage();
   }, [id]);
 
-  // Load ride info with vehicle details and check if user has an existing request
+  useEffect(() => {
+    if (
+      ride?.origin_latitude != null &&
+      ride?.origin_longitude != null &&
+      ride?.destination_latitude != null &&
+      ride?.destination_longitude != null
+    ) {
+      loadRoute();
+    }
+  }, [
+    ride?.origin_latitude,
+    ride?.origin_longitude,
+    ride?.destination_latitude,
+    ride?.destination_longitude,
+  ]);
+
   async function loadPage() {
     setLoading(true);
 
     const {
-      data: { user: currentUser },
-    } = await supabase.auth.getUser();
+      data: {
+        user: currentUser,
+      },
+    } =
+      await supabase.auth.getUser();
 
     if (!currentUser) {
       router.replace('/login');
@@ -48,20 +148,22 @@ export default function RideDetailsScreen() {
 
     setUser(currentUser);
 
-    const { data: rideData, error: rideError } =
-      await supabase
-        .from('rides')
-        .select(`
-          *,
-          vehicles (
-            brand,
-            model,
-            colour,
-            plate_number
-          )
-        `)
-        .eq('id', id)
-        .single();
+    const {
+      data: rideData,
+      error: rideError,
+    } = await supabase
+      .from('rides')
+      .select(`
+        *,
+        vehicles (
+          brand,
+          model,
+          colour,
+          plate_number
+        )
+      `)
+      .eq('id', id)
+      .single();
 
     if (rideError) {
       Alert.alert(
@@ -75,48 +177,306 @@ export default function RideDetailsScreen() {
 
     setRide(rideData);
 
-    const { data: existingRequest } =
-      await supabase
-        .from('ride_requests')
-        .select('*')
-        .eq('ride_id', id)
-        .eq('passenger_id', currentUser.id)
-        .maybeSingle();
+    const {
+      data: existingRequest,
+    } = await supabase
+      .from('ride_requests')
+      .select('*')
+      .eq('ride_id', id)
+      .eq(
+        'passenger_id',
+        currentUser.id
+      )
+      .maybeSingle();
 
-    setRequest(existingRequest || null);
+    setRequest(
+      existingRequest || null
+    );
 
     setLoading(false);
   }
 
-  // Submit a ride request for the current user to the driver
-  async function requestSeat() {
-    if (!ride || !user) return;
+  // Load actual driving route
+  // from OpenRouteService
+  async function loadRoute() {
+    if (
+      !ride ||
+      ride.origin_latitude == null ||
+      ride.origin_longitude == null ||
+      ride.destination_latitude == null ||
+      ride.destination_longitude == null
+    ) {
+      return;
+    }
 
-    if (ride.driver_id === user.id) {
+    const apiKey =
+      process.env
+        .EXPO_PUBLIC_ORS_API_KEY;
+
+    if (!apiKey) {
+      setRouteError(
+        'Route API key is missing.'
+      );
+
+      console.log(
+        'ORS API key missing'
+      );
+
+      return;
+    }
+
+    setRouteLoading(true);
+    setRouteError('');
+
+    try {
+      /*
+        ORS expects:
+
+        [longitude, latitude]
+      */
+
+      const requestBody = {
+        coordinates: [
+          [
+            Number(
+              ride.origin_longitude
+            ),
+            Number(
+              ride.origin_latitude
+            ),
+          ],
+
+          [
+            Number(
+              ride.destination_longitude
+            ),
+            Number(
+              ride.destination_latitude
+            ),
+          ],
+        ],
+      };
+
+      const response =
+        await fetch(
+          'https://api.heigit.org/openrouteservice/v2/directions/driving-car/geojson',
+          {
+            method: 'POST',
+
+            headers: {
+              Authorization:
+                apiKey,
+
+              'Content-Type':
+                'application/json',
+
+              Accept:
+                'application/geo+json',
+            },
+
+            body:
+              JSON.stringify(
+                requestBody
+              ),
+          }
+        );
+
+      const responseText =
+        await response.text();
+
+      if (!response.ok) {
+        console.log(
+          'ORS ERROR:',
+          response.status,
+          responseText
+        );
+
+        setRouteError(
+          `Unable to load route (${response.status}).`
+        );
+
+        return;
+      }
+
+      let data;
+
+      try {
+        data =
+          JSON.parse(
+            responseText
+          );
+      } catch (error) {
+        console.log(
+          'ORS JSON ERROR:',
+          error
+        );
+
+        setRouteError(
+          'Invalid route response.'
+        );
+
+        return;
+      }
+
+      if (
+        !data.features ||
+        data.features.length === 0
+      ) {
+        setRouteError(
+          'No driving route found.'
+        );
+
+        return;
+      }
+
+      const route =
+        data.features[0];
+
+      const geoCoordinates =
+        route.geometry
+          ?.coordinates;
+
+      if (
+        !geoCoordinates ||
+        geoCoordinates.length === 0
+      ) {
+        setRouteError(
+          'Route geometry unavailable.'
+        );
+
+        return;
+      }
+
+      /*
+        ORS:
+        [longitude, latitude]
+
+        react-native-maps:
+        {
+          latitude,
+          longitude
+        }
+      */
+
+      const convertedCoordinates =
+        geoCoordinates.map(
+          (coordinate) => ({
+            latitude:
+              coordinate[1],
+
+            longitude:
+              coordinate[0],
+          })
+        );
+
+      setRouteCoordinates(
+        convertedCoordinates
+      );
+
+      const summary =
+        route.properties
+          ?.summary;
+
+      if (summary) {
+        if (
+          summary.distance != null
+        ) {
+          setRouteDistance(
+            (
+              summary.distance /
+              1000
+            ).toFixed(1)
+          );
+        }
+
+        if (
+          summary.duration != null
+        ) {
+          setRouteDuration(
+            Math.round(
+              summary.duration /
+                60
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.log(
+        'ROUTE ERROR:',
+        error
+      );
+
+      setRouteError(
+        'Unable to load driving route.'
+      );
+    } finally {
+      setRouteLoading(false);
+    }
+  }
+
+  async function requestSeat() {
+    if (
+      !ride ||
+      !user
+    ) {
+      return;
+    }
+
+    if (
+      ride.driver_id ===
+      user.id
+    ) {
       Alert.alert(
         'Your ride',
         'You cannot request a seat in your own ride.'
       );
+
       return;
     }
 
-    if (ride.available_seats <= 0) {
+    if (
+      ride.available_seats <=
+      0
+    ) {
       Alert.alert(
         'Ride full',
         'There are no available seats.'
       );
+
+      return;
+    }
+
+    if (
+      ride.status !==
+      'available'
+    ) {
+      Alert.alert(
+        'Ride unavailable',
+        'This ride is no longer accepting passengers.'
+      );
+
       return;
     }
 
     setRequesting(true);
 
-    const { data, error } = await supabase
+    const {
+      data,
+      error,
+    } = await supabase
       .from('ride_requests')
       .insert({
-        ride_id: ride.id,
-        passenger_id: user.id,
-        seats_requested: 1,
-        status: 'pending',
+        ride_id:
+          ride.id,
+
+        passenger_id:
+          user.id,
+
+        seats_requested:
+          1,
+
+        status:
+          'pending',
       })
       .select()
       .single();
@@ -128,6 +488,7 @@ export default function RideDetailsScreen() {
         'Unable to request ride',
         error.message
       );
+
       return;
     }
 
@@ -139,20 +500,25 @@ export default function RideDetailsScreen() {
     );
   }
 
-  // Cancel a pending ride request by deleting it from Supabase
   async function cancelRequest() {
     if (!request) return;
 
-    const { error } = await supabase
+    const {
+      error,
+    } = await supabase
       .from('ride_requests')
       .delete()
-      .eq('id', request.id);
+      .eq(
+        'id',
+        request.id
+      );
 
     if (error) {
       Alert.alert(
         'Unable to cancel request',
         error.message
       );
+
       return;
     }
 
@@ -164,45 +530,60 @@ export default function RideDetailsScreen() {
     );
   }
 
-  // Confirm with the driver before cancelling their offered ride
   function confirmCancelRide() {
     Alert.alert(
       'Cancel ride?',
       'This ride will no longer be available to passengers.',
       [
         {
-          text: 'Keep Ride',
-          style: 'cancel',
+          text:
+            'Keep Ride',
+
+          style:
+            'cancel',
         },
+
         {
-          text: 'Cancel Ride',
-          style: 'destructive',
-          onPress: cancelRide,
+          text:
+            'Cancel Ride',
+
+          style:
+            'destructive',
+
+          onPress:
+            cancelRide,
         },
       ]
     );
   }
 
-  // Mark the ride as cancelled in Supabase
   async function cancelRide() {
-    const { error } = await supabase
+    const {
+      error,
+    } = await supabase
       .from('rides')
       .update({
-        status: 'cancelled',
+        status:
+          'cancelled',
       })
-      .eq('id', ride.id);
+      .eq(
+        'id',
+        ride.id
+      );
 
     if (error) {
       Alert.alert(
         'Unable to cancel ride',
         error.message
       );
+
       return;
     }
 
     setRide({
       ...ride,
-      status: 'cancelled',
+      status:
+        'cancelled',
     });
 
     Alert.alert(
@@ -211,26 +592,33 @@ export default function RideDetailsScreen() {
     );
   }
 
-  // Start the ride and transition status to in_progress
   async function startRide() {
-    const { error } = await supabase
+    const {
+      error,
+    } = await supabase
       .from('rides')
       .update({
-        status: 'in_progress',
+        status:
+          'in_progress',
       })
-      .eq('id', ride.id);
+      .eq(
+        'id',
+        ride.id
+      );
 
     if (error) {
       Alert.alert(
         'Unable to start ride',
         error.message
       );
+
       return;
     }
 
     setRide({
       ...ride,
-      status: 'in_progress',
+      status:
+        'in_progress',
     });
 
     Alert.alert(
@@ -239,26 +627,33 @@ export default function RideDetailsScreen() {
     );
   }
 
-  // Mark the ride as completed in Supabase
   async function completeRide() {
-    const { error } = await supabase
+    const {
+      error,
+    } = await supabase
       .from('rides')
       .update({
-        status: 'completed',
+        status:
+          'completed',
       })
-      .eq('id', ride.id);
+      .eq(
+        'id',
+        ride.id
+      );
 
     if (error) {
       Alert.alert(
         'Unable to complete ride',
         error.message
       );
+
       return;
     }
 
     setRide({
       ...ride,
-      status: 'completed',
+      status:
+        'completed',
     });
 
     Alert.alert(
@@ -269,359 +664,972 @@ export default function RideDetailsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
+      <View
+        style={
+          styles.center
+        }
+      >
+        <ActivityIndicator
+          size="large"
+        />
+
+        <Text
+          style={
+            styles.loadingText
+          }
+        >
+          Loading ride...
+        </Text>
       </View>
     );
   }
 
   if (!ride) {
     return (
-      <View style={styles.center}>
-        <Text>Ride not found.</Text>
+      <View
+        style={
+          styles.center
+        }
+      >
+        <Text>
+          Ride not found.
+        </Text>
       </View>
     );
   }
 
-  // Check whether the current user is the driver of this ride
   const isDriver =
-    user?.id === ride.driver_id;
+    user?.id ===
+    ride.driver_id;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>
+    <ScrollView
+      contentContainerStyle={
+        styles.container
+      }
+    >
+      <Text
+        style={
+          styles.title
+        }
+      >
         Ride Details
       </Text>
 
-      <View style={styles.card}>
-        <Text style={styles.route}>
+      {/* ROUTE NAMES */}
+
+      <View
+        style={
+          styles.card
+        }
+      >
+        <Text
+          style={
+            styles.routeLabel
+          }
+        >
+          Pickup
+        </Text>
+
+        <Text
+          style={
+            styles.route
+          }
+        >
           {ride.origin}
         </Text>
 
-        <Text style={styles.arrow}>↓</Text>
+        <Text
+          style={
+            styles.arrow
+          }
+        >
+          ↓
+        </Text>
 
-        <Text style={styles.route}>
-          {ride.destination}
+        <Text
+          style={
+            styles.routeLabel
+          }
+        >
+          Destination
+        </Text>
+
+        <Text
+          style={
+            styles.route
+          }
+        >
+          {
+            ride.destination
+          }
         </Text>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Date</Text>
-        <Text style={styles.value}>
-          {ride.departure_date}
+      {/* MAP */}
+
+      <View
+        style={
+          styles.card
+        }
+      >
+        <Text
+          style={
+            styles.sectionTitle
+          }
+        >
+          Route Map
         </Text>
 
-        <Text style={styles.label}>Time</Text>
-        <Text style={styles.value}>
-          {ride.departure_time}
+        {hasMapCoordinates ? (
+          <>
+            <MapView
+              style={
+                styles.map
+              }
+
+              initialRegion={{
+                latitude:
+                  (
+                    originCoordinate
+                      .latitude +
+                    destinationCoordinate
+                      .latitude
+                  ) / 2,
+
+                longitude:
+                  (
+                    originCoordinate
+                      .longitude +
+                    destinationCoordinate
+                      .longitude
+                  ) / 2,
+
+                latitudeDelta:
+                  Math.max(
+                    Math.abs(
+                      originCoordinate
+                        .latitude -
+                        destinationCoordinate
+                          .latitude
+                    ) * 2,
+
+                    0.03
+                  ),
+
+                longitudeDelta:
+                  Math.max(
+                    Math.abs(
+                      originCoordinate
+                        .longitude -
+                        destinationCoordinate
+                          .longitude
+                    ) * 2,
+
+                    0.03
+                  ),
+              }}
+            >
+              <Marker
+                coordinate={
+                  originCoordinate
+                }
+
+                title="Pickup"
+
+                description={
+                  ride.origin
+                }
+              />
+
+              <Marker
+                coordinate={
+                  destinationCoordinate
+                }
+
+                title="Destination"
+
+                description={
+                  ride.destination
+                }
+              />
+
+              {routeCoordinates.length >
+                0 && (
+                <Polyline
+                  coordinates={
+                    routeCoordinates
+                  }
+
+                  strokeWidth={
+                    5
+                  }
+                />
+              )}
+            </MapView>
+
+            {routeLoading && (
+              <View
+                style={
+                  styles.routeLoading
+                }
+              >
+                <ActivityIndicator
+                  size="small"
+                />
+
+                <Text
+                  style={
+                    styles.routeLoadingText
+                  }
+                >
+                  Calculating
+                  driving route...
+                </Text>
+              </View>
+            )}
+
+            {!routeLoading &&
+              routeDistance &&
+              routeDuration && (
+                <View
+                  style={
+                    styles.routeSummary
+                  }
+                >
+                  <View
+                    style={
+                      styles.routeSummaryBox
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.routeSummaryLabel
+                      }
+                    >
+                      Distance
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.routeSummaryValue
+                      }
+                    >
+                      {
+                        routeDistance
+                      }{' '}
+                      km
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.routeSummaryBox
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.routeSummaryLabel
+                      }
+                    >
+                      Estimated Time
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.routeSummaryValue
+                      }
+                    >
+                      {
+                        routeDuration
+                      }{' '}
+                      min
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+            {routeError ? (
+              <Text
+                style={
+                  styles.routeError
+                }
+              >
+                {routeError}
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <View
+            style={
+              styles.noMapBox
+            }
+          >
+            <Text
+              style={
+                styles.noMapText
+              }
+            >
+              Map location is
+              not available for
+              this ride.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* RIDE INFORMATION */}
+
+      <View
+        style={
+          styles.card
+        }
+      >
+        <Text
+          style={
+            styles.label
+          }
+        >
+          Date
         </Text>
 
-        <Text style={styles.label}>Vehicle</Text>
-        <Text style={styles.value}>
-          {ride.vehicles?.brand} {ride.vehicles?.model}
+        <Text
+          style={
+            styles.value
+          }
+        >
+          {
+            ride.departure_date
+          }
         </Text>
 
-        <Text style={styles.secondary}>
-          {ride.vehicles?.colour} • {ride.vehicles?.plate_number}
+        <Text
+          style={
+            styles.label
+          }
+        >
+          Time
         </Text>
 
-        <Text style={styles.label}>
+        <Text
+          style={
+            styles.value
+          }
+        >
+          {
+            ride.departure_time
+          }
+        </Text>
+
+        <Text
+          style={
+            styles.label
+          }
+        >
+          Vehicle
+        </Text>
+
+        <Text
+          style={
+            styles.value
+          }
+        >
+          {ride.vehicles?.brand}{' '}
+          {ride.vehicles?.model}
+        </Text>
+
+        <Text
+          style={
+            styles.secondary
+          }
+        >
+          {
+            ride.vehicles
+              ?.colour
+          }{' '}
+          •{' '}
+          {
+            ride.vehicles
+              ?.plate_number
+          }
+        </Text>
+
+        <Text
+          style={
+            styles.label
+          }
+        >
           Available Seats
         </Text>
 
-        <Text style={styles.value}>
-          {ride.available_seats}
+        <Text
+          style={
+            styles.value
+          }
+        >
+          {
+            ride.available_seats
+          }
         </Text>
 
-        <Text style={styles.label}>Price</Text>
-
-        <Text style={styles.price}>
-          RM{ride.price_per_seat} / seat
+        <Text
+          style={
+            styles.label
+          }
+        >
+          Price
         </Text>
 
-        <Text style={styles.label}>
+        <Text
+          style={
+            styles.price
+          }
+        >
+          RM
+          {
+            ride.price_per_seat
+          }{' '}
+          / seat
+        </Text>
+
+        <Text
+          style={
+            styles.label
+          }
+        >
           Ride Status
         </Text>
 
-        <Text style={styles.status}>
-          {ride.status.toUpperCase()}
+        <Text
+          style={
+            styles.status
+          }
+        >
+          {ride.status
+            .toUpperCase()}
         </Text>
 
         {ride.notes ? (
           <>
-            <Text style={styles.label}>
+            <Text
+              style={
+                styles.label
+              }
+            >
               Notes
             </Text>
 
-            <Text style={styles.value}>
+            <Text
+              style={
+                styles.value
+              }
+            >
               {ride.notes}
             </Text>
           </>
         ) : null}
       </View>
 
-      {/* Show status if user is the driver or has already requested; otherwise show Request button */}
+      {/* DRIVER CONTROLS */}
+
       {isDriver ? (
         <View>
-          <Text style={styles.message}>
+          <Text
+            style={
+              styles.message
+            }
+          >
             This is your ride.
           </Text>
 
-          {(ride.status === 'available' ||
-            ride.status === 'full') && (
+          {(ride.status ===
+            'available' ||
+            ride.status ===
+              'full') && (
             <>
               <TouchableOpacity
                 onPress={() =>
                   router.push({
-                    pathname: '/ride-requests/[rideId]',
+                    pathname:
+                      '/ride-requests/[rideId]',
+
                     params: {
-                      rideId: ride.id,
+                      rideId:
+                        ride.id,
                     },
                   })
                 }
-                style={styles.button}
+
+                style={
+                  styles.button
+                }
               >
-                <Text style={styles.buttonText}>
-                  View Passenger Requests
+                <Text
+                  style={
+                    styles.buttonText
+                  }
+                >
+                  View Passenger
+                  Requests
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={startRide}
-                style={styles.startButton}
+                onPress={
+                  startRide
+                }
+
+                style={
+                  styles.startButton
+                }
               >
-                <Text style={styles.startButtonText}>
+                <Text
+                  style={
+                    styles.startButtonText
+                  }
+                >
                   Start Ride
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={confirmCancelRide}
-                style={styles.cancelRideButton}
+                onPress={
+                  confirmCancelRide
+                }
+
+                style={
+                  styles.cancelRideButton
+                }
               >
-                <Text style={styles.cancelRideText}>
+                <Text
+                  style={
+                    styles.cancelRideText
+                  }
+                >
                   Cancel Ride
                 </Text>
               </TouchableOpacity>
             </>
           )}
 
-          {ride.status === 'in_progress' && (
+          {ride.status ===
+            'in_progress' && (
             <TouchableOpacity
-              onPress={completeRide}
-              style={styles.completeButton}
+              onPress={
+                completeRide
+              }
+
+              style={
+                styles.completeButton
+              }
             >
-              <Text style={styles.completeButtonText}>
+              <Text
+                style={
+                  styles.completeButtonText
+                }
+              >
                 Complete Ride
               </Text>
             </TouchableOpacity>
           )}
 
-          {ride.status === 'completed' && (
-            <Text style={styles.finishedText}>
+          {ride.status ===
+            'completed' && (
+            <Text
+              style={
+                styles.finishedText
+              }
+            >
               Ride completed
             </Text>
           )}
 
-          {ride.status === 'cancelled' && (
-            <Text style={styles.cancelledText}>
+          {ride.status ===
+            'cancelled' && (
+            <Text
+              style={
+                styles.cancelledText
+              }
+            >
               Ride cancelled
             </Text>
           )}
         </View>
       ) : request ? (
-        <View style={styles.statusBox}>
-          <Text style={styles.label}>
+        // PASSENGER ALREADY REQUESTED
+        <View
+          style={
+            styles.statusBox
+          }
+        >
+          <Text
+            style={
+              styles.label
+            }
+          >
             Request Status
           </Text>
 
-          <Text style={styles.status}>
-            {request.status.toUpperCase()}
+          <Text
+            style={
+              styles.status
+            }
+          >
+            {request.status
+              .toUpperCase()}
           </Text>
 
-          {request.status === 'pending' ? (
+          {request.status ===
+            'pending' ? (
             <TouchableOpacity
-              onPress={cancelRequest}
-              style={styles.cancelButton}
+              onPress={
+                cancelRequest
+              }
+
+              style={
+                styles.cancelButton
+              }
             >
-              <Text style={styles.cancelText}>
+              <Text
+                style={
+                  styles.cancelText
+                }
+              >
                 Cancel Request
               </Text>
             </TouchableOpacity>
           ) : null}
         </View>
-      ) : (
+      ) : ride.status ===
+        'available' ? (
+        // PASSENGER CAN REQUEST
         <TouchableOpacity
-          onPress={requestSeat}
-          disabled={requesting}
+          onPress={
+            requestSeat
+          }
+
+          disabled={
+            requesting
+          }
+
           style={[
             styles.button,
-            requesting && { opacity: 0.5 },
+
+            requesting && {
+              opacity: 0.5,
+            },
           ]}
         >
-          <Text style={styles.buttonText}>
+          <Text
+            style={
+              styles.buttonText
+            }
+          >
             {requesting
               ? 'Sending...'
               : 'Request Seat'}
           </Text>
         </TouchableOpacity>
+      ) : (
+        <View
+          style={
+            styles.unavailableBox
+          }
+        >
+          <Text
+            style={
+              styles.unavailableText
+            }
+          >
+            This ride is no longer
+            accepting passenger
+            requests.
+          </Text>
+        </View>
       )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 24,
-    paddingTop: 50,
-    paddingBottom: 50,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      padding: 24,
+      paddingTop: 50,
+      paddingBottom: 50,
+    },
 
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+    center: {
+      flex: 1,
+      justifyContent:
+        'center',
+      alignItems:
+        'center',
+    },
 
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 25,
-  },
+    loadingText: {
+      marginTop: 10,
+      color: '#666',
+    },
 
-  card: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-  },
+    title: {
+      fontSize: 32,
+      fontWeight:
+        'bold',
+      marginBottom: 25,
+    },
 
-  route: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
+    card: {
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 20,
+    },
 
-  arrow: {
-    fontSize: 20,
-    marginVertical: 8,
-  },
+    routeLabel: {
+      color: '#666',
+      marginBottom: 4,
+    },
 
-  label: {
-    color: '#666',
-    marginTop: 14,
-    marginBottom: 3,
-  },
+    route: {
+      fontSize: 20,
+      fontWeight:
+        'bold',
+    },
 
-  value: {
-    fontSize: 17,
-    fontWeight: '600',
-  },
+    arrow: {
+      fontSize: 20,
+      marginVertical: 10,
+    },
 
-  secondary: {
-    color: '#666',
-    marginTop: 3,
-  },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight:
+        'bold',
+      marginBottom: 12,
+    },
 
-  price: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
+    map: {
+      width: '100%',
+      height: 280,
+      borderRadius: 12,
+    },
 
-  button: {
-    backgroundColor: '#222',
-    padding: 17,
-    borderRadius: 12,
-  },
+    routeLoading: {
+      flexDirection:
+        'row',
+      alignItems:
+        'center',
+      marginTop: 12,
+    },
 
-  buttonText: {
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
+    routeLoadingText: {
+      marginLeft: 8,
+      color: '#666',
+    },
 
-  message: {
-    textAlign: 'center',
-    fontWeight: '600',
-  },
+    routeSummary: {
+      flexDirection:
+        'row',
+      gap: 10,
+      marginTop: 14,
+    },
 
-  statusBox: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 14,
-    padding: 18,
-  },
+    routeSummaryBox: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 10,
+      padding: 12,
+    },
 
-  status: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 5,
-  },
+    routeSummaryLabel: {
+      color: '#666',
+      fontSize: 13,
+    },
 
-  cancelButton: {
-    marginTop: 15,
-    borderWidth: 1,
-    borderColor: '#b00020',
-    padding: 13,
-    borderRadius: 10,
-  },
+    routeSummaryValue: {
+      marginTop: 4,
+      fontSize: 17,
+      fontWeight:
+        'bold',
+    },
 
-  cancelText: {
-    color: '#b00020',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
+    routeError: {
+      color: '#b00020',
+      marginTop: 10,
+    },
 
-  completeButton: {
-    backgroundColor: '#222',
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 12,
-  },
+    noMapBox: {
+      padding: 20,
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 12,
+      alignItems:
+        'center',
+    },
 
-  completeButtonText: {
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
+    noMapText: {
+      color: '#666',
+      textAlign:
+        'center',
+    },
 
-  startButton: {
-    backgroundColor: '#222',
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 12,
-  },
+    label: {
+      color: '#666',
+      marginTop: 14,
+      marginBottom: 3,
+    },
 
-  startButtonText: {
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
+    value: {
+      fontSize: 17,
+      fontWeight:
+        '600',
+    },
 
-  cancelRideButton: {
-    borderWidth: 1,
-    borderColor: '#b00020',
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 12,
-  },
+    secondary: {
+      color: '#666',
+      marginTop: 3,
+    },
 
-  cancelRideText: {
-    color: '#b00020',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
+    price: {
+      fontSize: 22,
+      fontWeight:
+        'bold',
+    },
 
-  finishedText: {
-    marginTop: 20,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
+    status: {
+      fontSize: 20,
+      fontWeight:
+        'bold',
+      marginTop: 5,
+    },
 
-  cancelledText: {
-    marginTop: 20,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-});
+    button: {
+      backgroundColor:
+        '#222',
+      padding: 17,
+      borderRadius: 12,
+      marginTop: 12,
+    },
+
+    buttonText: {
+      color: 'white',
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+      fontSize: 16,
+    },
+
+    message: {
+      textAlign:
+        'center',
+      fontWeight:
+        '600',
+      marginBottom: 5,
+    },
+
+    statusBox: {
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 14,
+      padding: 18,
+    },
+
+    cancelButton: {
+      marginTop: 15,
+      borderWidth: 1,
+      borderColor:
+        '#b00020',
+      padding: 13,
+      borderRadius: 10,
+    },
+
+    cancelText: {
+      color: '#b00020',
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+    },
+
+    startButton: {
+      backgroundColor:
+        '#222',
+      padding: 15,
+      borderRadius: 10,
+      marginTop: 12,
+    },
+
+    startButtonText: {
+      color: 'white',
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+    },
+
+    completeButton: {
+      backgroundColor:
+        '#222',
+      padding: 15,
+      borderRadius: 10,
+      marginTop: 12,
+    },
+
+    completeButtonText: {
+      color: 'white',
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+    },
+
+    cancelRideButton: {
+      borderWidth: 1,
+      borderColor:
+        '#b00020',
+      padding: 15,
+      borderRadius: 10,
+      marginTop: 12,
+    },
+
+    cancelRideText: {
+      color: '#b00020',
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+    },
+
+    finishedText: {
+      marginTop: 20,
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+    },
+
+    cancelledText: {
+      marginTop: 20,
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+    },
+
+    unavailableBox: {
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 12,
+      padding: 16,
+    },
+
+    unavailableText: {
+      color: '#666',
+      textAlign:
+        'center',
+    },
+  });
