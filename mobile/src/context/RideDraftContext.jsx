@@ -26,6 +26,9 @@ export function RideDraftProvider({
     setDestinationLongitude,
   ] = useState(null);
 
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+
   function clearRideDraft() {
     setOrigin('');
     setOriginLatitude(null);
@@ -34,6 +37,9 @@ export function RideDraftProvider({
     setDestination('');
     setDestinationLatitude(null);
     setDestinationLongitude(null);
+
+    setDate('');
+    setTime('');
   }
 
   return (
@@ -56,6 +62,12 @@ export function RideDraftProvider({
 
         destinationLongitude,
         setDestinationLongitude,
+
+        date,
+        setDate,
+
+        time,
+        setTime,
 
         clearRideDraft,
       }}

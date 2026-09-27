@@ -12,7 +12,11 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Platform,
+  Modal,
 } from 'react-native';
+
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import {
   router,
@@ -50,14 +54,20 @@ export default function CreateRideScreen() {
     destinationLatitude,
     destinationLongitude,
 
+    date,
+    setDate,
+
+    time,
+    setTime,
+
     clearRideDraft,
   } = useRideDraft();
 
-  const [date, setDate] =
-    useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  const [time, setTime] =
-    useState('');
+  const [tempDate, setTempDate] = useState(new Date());
+  const [tempTime, setTempTime] = useState(new Date());
 
   const [seats, setSeats] =
     useState('');
@@ -81,6 +91,94 @@ export default function CreateRideScreen() {
   useEffect(() => {
     loadVehicles();
   }, []);
+
+  function formatDate(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function formatTime(d) {
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+
+  function parseDateString(str) {
+    if (!str) return new Date();
+    const parts = str.split('-');
+    if (parts.length === 3) {
+      const parsed = new Date(
+        Number(parts[0]),
+        Number(parts[1]) - 1,
+        Number(parts[2])
+      );
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+    return new Date();
+  }
+
+  function parseTimeString(str) {
+    if (!str) return new Date();
+    const parts = str.split(':');
+    if (parts.length >= 2) {
+      const d = new Date();
+      d.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
+      if (!Number.isNaN(d.getTime())) {
+        return d;
+      }
+    }
+    return new Date();
+  }
+
+  function openDatePicker() {
+    setTempDate(parseDateString(date));
+    setShowDatePicker(true);
+  }
+
+  function openTimePicker() {
+    setTempTime(parseTimeString(time));
+    setShowTimePicker(true);
+  }
+
+  function onAndroidDateChange(event, chosenDate) {
+    setShowDatePicker(false);
+    if (event.type === 'set' && chosenDate) {
+      setDate(formatDate(chosenDate));
+    }
+  }
+
+  function onAndroidTimeChange(event, chosenTime) {
+    setShowTimePicker(false);
+    if (event.type === 'set' && chosenTime) {
+      setTime(formatTime(chosenTime));
+    }
+  }
+
+  function onIOSDateChange(event, chosenDate) {
+    if (chosenDate) {
+      setTempDate(chosenDate);
+    }
+  }
+
+  function confirmIOSDate() {
+    setDate(formatDate(tempDate));
+    setShowDatePicker(false);
+  }
+
+  function onIOSTimeChange(event, chosenTime) {
+    if (chosenTime) {
+      setTempTime(chosenTime);
+    }
+  }
+
+  function confirmIOSTime() {
+    setTime(formatTime(tempTime));
+    setShowTimePicker(false);
+  }
 
   async function loadVehicles() {
     const {
@@ -615,16 +713,20 @@ export default function CreateRideScreen() {
         Date
       </Text>
 
-      <TextInput
-        placeholder="2026-09-27"
-        value={date}
-        onChangeText={
-          setDate
-        }
-        style={
-          styles.input
-        }
-      />
+      <TouchableOpacity
+        onPress={openDatePicker}
+        style={styles.pickerButton}
+      >
+        <Text
+          style={
+            date
+              ? styles.pickerValueText
+              : styles.pickerPlaceholderText
+          }
+        >
+          {date || 'Select date (YYYY-MM-DD)'}
+        </Text>
+      </TouchableOpacity>
 
       <Text
         style={
@@ -634,16 +736,20 @@ export default function CreateRideScreen() {
         Departure Time
       </Text>
 
-      <TextInput
-        placeholder="17:00"
-        value={time}
-        onChangeText={
-          setTime
-        }
-        style={
-          styles.input
-        }
-      />
+      <TouchableOpacity
+        onPress={openTimePicker}
+        style={styles.pickerButton}
+      >
+        <Text
+          style={
+            time
+              ? styles.pickerValueText
+              : styles.pickerPlaceholderText
+          }
+        >
+          {time || 'Select time (HH:mm)'}
+        </Text>
+      </TouchableOpacity>
 
       <Text
         style={
@@ -733,6 +839,118 @@ export default function CreateRideScreen() {
             : 'Publish Ride'}
         </Text>
       </TouchableOpacity>
+
+      {/* Date Picker */}
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={showDatePicker}
+          transparent={true}
+          animationType="slide"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(false)}
+                >
+                  <Text style={styles.modalCancelText}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={styles.modalTitle}>
+                  Select Date
+                </Text>
+
+                <TouchableOpacity
+                  onPress={confirmIOSDate}
+                >
+                  <Text style={styles.modalDoneText}>
+                    Done
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.pickerContainer}>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  minimumDate={new Date()}
+                  onChange={onIOSDateChange}
+                  style={styles.iosPicker}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        showDatePicker && (
+          <DateTimePicker
+            value={parseDateString(date)}
+            mode="date"
+            display="default"
+            minimumDate={new Date()}
+            onChange={onAndroidDateChange}
+          />
+        )
+      )}
+
+      {/* Time Picker */}
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={showTimePicker}
+          transparent={true}
+          animationType="slide"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity
+                  onPress={() => setShowTimePicker(false)}
+                >
+                  <Text style={styles.modalCancelText}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={styles.modalTitle}>
+                  Select Departure Time
+                </Text>
+
+                <TouchableOpacity
+                  onPress={confirmIOSTime}
+                >
+                  <Text style={styles.modalDoneText}>
+                    Done
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.pickerContainer}>
+                <DateTimePicker
+                  value={tempTime}
+                  mode="time"
+                  display="spinner"
+                  is24Hour={true}
+                  onChange={onIOSTimeChange}
+                  style={styles.iosPicker}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        showTimePicker && (
+          <DateTimePicker
+            value={parseTimeString(time)}
+            mode="time"
+            display="default"
+            is24Hour={true}
+            onChange={onAndroidTimeChange}
+          />
+        )
+      )}
     </ScrollView>
   );
 }
@@ -861,5 +1079,81 @@ const styles =
         'center',
       marginTop: 10,
       marginBottom: 20,
+    },
+
+    pickerButton: {
+      borderWidth: 1,
+      borderColor: '#ccc',
+      borderRadius: 12,
+      padding: 15,
+      marginBottom: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#fafafa',
+    },
+
+    pickerValueText: {
+      fontSize: 16,
+      color: '#111',
+      fontWeight: '500',
+    },
+
+    pickerPlaceholderText: {
+      fontSize: 16,
+      color: '#999',
+    },
+
+    pickerContainer: {
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    iosPicker: {
+      height: 216,
+      width: 320,
+      alignSelf: 'center',
+    },
+
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.45)',
+      justifyContent: 'flex-end',
+    },
+
+    modalContent: {
+      backgroundColor: 'white',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: 34,
+      alignItems: 'center',
+    },
+
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#eee',
+      width: '100%',
+    },
+
+    modalTitle: {
+      fontSize: 17,
+      fontWeight: 'bold',
+    },
+
+    modalCancelText: {
+      fontSize: 16,
+      color: '#666',
+    },
+
+    modalDoneText: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#222',
     },
   });
