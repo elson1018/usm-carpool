@@ -57,8 +57,16 @@ export default function CreateRideScreen() {
       return;
     }
 
-    const latitude = Number(params.latitude);
-    const longitude = Number(params.longitude);
+    const latitude =
+      Number(params.latitude);
+
+    const longitude =
+      Number(params.longitude);
+
+    const selectedPlaceName =
+      params.placeName
+        ? String(params.placeName)
+        : `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 
     if (
       Number.isNaN(latitude) ||
@@ -71,23 +79,20 @@ export default function CreateRideScreen() {
       setOriginLatitude(latitude);
       setOriginLongitude(longitude);
 
-      setOrigin(
-        `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
-      );
+      setOrigin(selectedPlaceName);
     }
 
     if (params.type === 'destination') {
       setDestinationLatitude(latitude);
       setDestinationLongitude(longitude);
 
-      setDestination(
-        `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
-      );
+      setDestination(selectedPlaceName);
     }
   }, [
     params.type,
     params.latitude,
     params.longitude,
+    params.placeName,
   ]);
 
   async function loadVehicles() {
