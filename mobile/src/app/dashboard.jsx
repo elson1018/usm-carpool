@@ -163,6 +163,32 @@ export default function DashboardScreen() {
       </TouchableOpacity>
 
       <TouchableOpacity
+        onPress={() =>
+          router.push(
+            '/verification'
+          )
+        }
+        style={styles.button}
+      >
+        <Text style={styles.buttonText}>
+          Verification
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() =>
+          router.push(
+            '/admin-verification'
+          )
+        }
+        style={styles.button}
+      >
+        <Text style={styles.buttonText}>
+          Admin Verification
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         onPress={logout}
         style={styles.logoutButton}
       >
@@ -228,9 +254,24 @@ const styles = StyleSheet.create({
     borderColor: '#222',
     padding: 17,
     borderRadius: 12,
+    marginBottom: 15,
   },
 
   secondaryText: {
+    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+
+  button: {
+    borderWidth: 1,
+    borderColor: '#222',
+    padding: 17,
+    borderRadius: 12,
+    marginBottom: 15,
+  },
+
+  buttonText: {
     textAlign: 'center',
     fontSize: 17,
     fontWeight: 'bold',

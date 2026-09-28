@@ -91,6 +91,20 @@ export default function RootLayout() {
             title: 'Passenger Requests',
           }}
         />
+
+        <Stack.Screen
+          name="verification"
+          options={{
+            title: 'Verification',
+          }}
+        />
+
+        <Stack.Screen
+          name="admin-verification"
+          options={{
+            title: 'Admin Verification',
+          }}
+        />
       </Stack>
     </RideDraftProvider>
   );
