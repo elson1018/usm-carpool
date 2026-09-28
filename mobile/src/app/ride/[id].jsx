@@ -52,6 +52,11 @@ export default function RideDetailsScreen() {
     setRequesting,
   ] = useState(false);
 
+  const [
+    seatsRequested,
+    setSeatsRequested,
+  ] = useState(1);
+
   // Route states
 
   const [
@@ -176,6 +181,13 @@ export default function RideDetailsScreen() {
     }
 
     setRide(rideData);
+
+    if (
+      rideData &&
+      rideData.available_seats > 0
+    ) {
+      setSeatsRequested(1);
+    }
 
     const {
       data: existingRequest,
@@ -414,6 +426,23 @@ export default function RideDetailsScreen() {
     }
   }
 
+  function decrementSeats() {
+    setSeatsRequested((prev) =>
+      Math.max(1, prev - 1)
+    );
+  }
+
+  function incrementSeats() {
+    if (!ride) return;
+
+    const maxSeats =
+      Number(ride.available_seats) || 1;
+
+    setSeatsRequested((prev) =>
+      Math.min(maxSeats, prev + 1)
+    );
+  }
+
   async function requestSeat() {
     if (
       !ride ||
@@ -458,6 +487,29 @@ export default function RideDetailsScreen() {
       return;
     }
 
+    if (seatsRequested < 1) {
+      Alert.alert(
+        'Invalid seats',
+        'Please select at least 1 seat.'
+      );
+
+      return;
+    }
+
+    if (
+      seatsRequested >
+      ride.available_seats
+    ) {
+      Alert.alert(
+        'Not enough seats',
+        `You cannot request more than the ${ride.available_seats} available seat${
+          ride.available_seats === 1 ? '' : 's'
+        }.`
+      );
+
+      return;
+    }
+
     setRequesting(true);
 
     const {
@@ -473,7 +525,7 @@ export default function RideDetailsScreen() {
           user.id,
 
         seats_requested:
-          1,
+          seatsRequested,
 
         status:
           'pending',
@@ -496,7 +548,9 @@ export default function RideDetailsScreen() {
 
     Alert.alert(
       'Request sent',
-      'The driver can now review your request.'
+      `Your request for ${seatsRequested} seat${
+        seatsRequested > 1 ? 's' : ''
+      } has been sent to the driver.`
     );
   }
 
@@ -1279,6 +1333,22 @@ export default function RideDetailsScreen() {
               .toUpperCase()}
           </Text>
 
+          <Text
+            style={
+              styles.label
+            }
+          >
+            Seats Requested
+          </Text>
+
+          <Text
+            style={
+              styles.value
+            }
+          >
+            {request.seats_requested || 1}
+          </Text>
+
           {request.status ===
             'pending' ? (
             <TouchableOpacity
@@ -1303,33 +1373,150 @@ export default function RideDetailsScreen() {
       ) : ride.status ===
         'available' ? (
         // PASSENGER CAN REQUEST
-        <TouchableOpacity
-          onPress={
-            requestSeat
+        <View
+          style={
+            styles.requestContainer
           }
-
-          disabled={
-            requesting
-          }
-
-          style={[
-            styles.button,
-
-            requesting && {
-              opacity: 0.5,
-            },
-          ]}
         >
           <Text
             style={
-              styles.buttonText
+              styles.seatsRequestLabel
             }
           >
-            {requesting
-              ? 'Sending...'
-              : 'Request Seat'}
+            Seats to Request:
           </Text>
-        </TouchableOpacity>
+
+          <View
+            style={
+              styles.seatCounterRow
+            }
+          >
+            <TouchableOpacity
+              onPress={
+                decrementSeats
+              }
+              disabled={
+                seatsRequested <= 1 ||
+                requesting ||
+                ride.available_seats <= 0
+              }
+              style={[
+                styles.counterButton,
+                (seatsRequested <= 1 ||
+                  requesting ||
+                  ride.available_seats <= 0) &&
+                  styles.counterButtonDisabled,
+              ]}
+              accessibilityLabel="Decrease seats"
+            >
+              <Text
+                style={[
+                  styles.counterButtonText,
+                  (seatsRequested <= 1 ||
+                    requesting ||
+                    ride.available_seats <= 0) &&
+                    styles.counterButtonTextDisabled,
+                ]}
+              >
+                −
+              </Text>
+            </TouchableOpacity>
+
+            <View
+              style={
+                styles.counterValueBox
+              }
+            >
+              <Text
+                style={
+                  styles.counterValue
+                }
+              >
+                {seatsRequested}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={
+                incrementSeats
+              }
+              disabled={
+                seatsRequested >=
+                  ride.available_seats ||
+                requesting ||
+                ride.available_seats <= 0
+              }
+              style={[
+                styles.counterButton,
+                (seatsRequested >=
+                  ride.available_seats ||
+                  requesting ||
+                  ride.available_seats <= 0) &&
+                  styles.counterButtonDisabled,
+              ]}
+              accessibilityLabel="Increase seats"
+            >
+              <Text
+                style={[
+                  styles.counterButtonText,
+                  (seatsRequested >=
+                    ride.available_seats ||
+                    requesting ||
+                    ride.available_seats <= 0) &&
+                    styles.counterButtonTextDisabled,
+                ]}
+              >
+                +
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {ride.available_seats <= 0 ? (
+            <Text
+              style={
+                styles.seatsLimitNotice
+              }
+            >
+              There are no available seats on this ride.
+            </Text>
+          ) : seatsRequested >=
+            ride.available_seats ? (
+            <Text
+              style={
+                styles.seatsLimitNotice
+              }
+            >
+              Maximum available seats reached ({ride.available_seats}).
+            </Text>
+          ) : null}
+
+          <TouchableOpacity
+            onPress={
+              requestSeat
+            }
+            disabled={
+              requesting ||
+              ride.available_seats <= 0
+            }
+            style={[
+              styles.button,
+              (requesting ||
+                ride.available_seats <= 0) && {
+                opacity: 0.5,
+              },
+            ]}
+          >
+            <Text
+              style={
+                styles.buttonText
+              }
+            >
+              {requesting
+                ? 'Sending...'
+                : 'Request Seat'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <View
           style={
@@ -1631,5 +1818,69 @@ const styles =
       color: '#666',
       textAlign:
         'center',
+    },
+
+    requestContainer: {
+      marginTop: 4,
+    },
+
+    seatsRequestLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#333',
+      marginBottom: 12,
+    },
+
+    seatCounterRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+
+    counterButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: '#222',
+      backgroundColor: '#fff',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+
+    counterButtonDisabled: {
+      borderColor: '#e5e7eb',
+      backgroundColor: '#f3f4f6',
+    },
+
+    counterButtonText: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: '#222',
+      lineHeight: 24,
+    },
+
+    counterButtonTextDisabled: {
+      color: '#9ca3af',
+    },
+
+    counterValueBox: {
+      minWidth: 54,
+      paddingHorizontal: 16,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+
+    counterValue: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: '#111',
+    },
+
+    seatsLimitNotice: {
+      fontSize: 13,
+      color: '#d97706',
+      marginBottom: 10,
+      fontWeight: '500',
     },
   });

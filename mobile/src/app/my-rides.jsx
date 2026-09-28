@@ -1,4 +1,9 @@
-// My Rides screen: displays rides where the user is either the driver or a passenger
+import {
+  useCallback,
+  useMemo,
+  useState,
+} from 'react';
+
 import {
   View,
   Text,
@@ -10,39 +15,42 @@ import {
 } from 'react-native';
 
 import {
-  useCallback,
-  useState,
-} from 'react';
-
-import {
   router,
   useFocusEffect,
 } from 'expo-router';
 
-import { supabase } from '../lib/supabase';
+import {
+  supabase,
+} from '../lib/supabase';
 
 export default function MyRidesScreen() {
-  const [driverRides, setDriverRides] = useState([]);
-  const [passengerRides, setPassengerRides] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [driverRides, setDriverRides] =
+    useState([]);
 
-  // Reload rides whenever this screen comes into focus
+  const [passengerRides, setPassengerRides] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [activeTab, setActiveTab] =
+    useState('upcoming');
+
   useFocusEffect(
     useCallback(() => {
       loadMyRides();
     }, [])
   );
 
-  // Fetch rides offered by this driver and ride requests made as a passenger
   async function loadMyRides() {
     try {
       setLoading(true);
 
-      // 1. Get current user
       const {
         data: { user },
         error: userError,
-      } = await supabase.auth.getUser();
+      } =
+        await supabase.auth.getUser();
 
       if (userError) {
         console.log(
@@ -56,12 +64,7 @@ export default function MyRidesScreen() {
         return;
       }
 
-      console.log(
-        'CURRENT USER ID:',
-        user.id
-      );
-
-      // 2. Load rides where this user is the driver
+      // Driver rides
       const {
         data: ownedRides,
         error: driverError,
@@ -80,6 +83,7 @@ export default function MyRidesScreen() {
           notes,
           status,
           created_at,
+
           vehicles (
             brand,
             model,
@@ -87,23 +91,22 @@ export default function MyRidesScreen() {
             plate_number
           )
         `)
-        .eq('driver_id', user.id)
-        .order('departure_date', {
-          ascending: true,
-        })
-        .order('departure_time', {
-          ascending: true,
-        });
-
-      console.log(
-        'DRIVER RIDES:',
-        ownedRides
-      );
-
-      console.log(
-        'DRIVER ERROR:',
-        driverError
-      );
+        .eq(
+          'driver_id',
+          user.id
+        )
+        .order(
+          'departure_date',
+          {
+            ascending: true,
+          }
+        )
+        .order(
+          'departure_time',
+          {
+            ascending: true,
+          }
+        );
 
       if (driverError) {
         Alert.alert(
@@ -112,7 +115,7 @@ export default function MyRidesScreen() {
         );
       }
 
-      // 3. Load rides where this user is a passenger
+      // Passenger rides
       const {
         data: requestedRides,
         error: passengerError,
@@ -123,6 +126,7 @@ export default function MyRidesScreen() {
           status,
           seats_requested,
           created_at,
+
           rides (
             id,
             origin,
@@ -132,6 +136,7 @@ export default function MyRidesScreen() {
             price_per_seat,
             available_seats,
             status,
+
             vehicles (
               brand,
               model,
@@ -140,20 +145,16 @@ export default function MyRidesScreen() {
             )
           )
         `)
-        .eq('passenger_id', user.id)
-        .order('created_at', {
-          ascending: false,
-        });
-
-      console.log(
-        'PASSENGER RIDES:',
-        requestedRides
-      );
-
-      console.log(
-        'PASSENGER ERROR:',
-        passengerError
-      );
+        .eq(
+          'passenger_id',
+          user.id
+        )
+        .order(
+          'created_at',
+          {
+            ascending: false,
+          }
+        );
 
       if (passengerError) {
         Alert.alert(
@@ -184,12 +185,205 @@ export default function MyRidesScreen() {
     }
   }
 
+  const allRideItems =
+    useMemo(() => {
+      const driverItems =
+        driverRides.map(
+          (ride) => ({
+            key:
+              `driver-${ride.id}`,
+
+            role:
+              'driver',
+
+            ride,
+
+            requestStatus:
+              null,
+
+            seatsRequested:
+              null,
+          })
+        );
+
+      const passengerItems =
+        passengerRides
+          .filter(
+            (request) =>
+              request.rides
+          )
+          .map(
+            (request) => ({
+              key:
+                `passenger-${request.id}`,
+
+              role:
+                'passenger',
+
+              ride:
+                request.rides,
+
+              requestStatus:
+                request.status,
+
+              seatsRequested:
+                request.seats_requested,
+            })
+          );
+
+      return [
+        ...driverItems,
+        ...passengerItems,
+      ];
+    }, [
+      driverRides,
+      passengerRides,
+    ]);
+
+  const filteredRides =
+    useMemo(() => {
+      return allRideItems.filter(
+        (item) => {
+          const rideStatus =
+            item.ride?.status;
+
+          if (
+            activeTab ===
+            'upcoming'
+          ) {
+            if (
+              item.role ===
+              'passenger' &&
+              item.requestStatus ===
+                'rejected'
+            ) {
+              return false;
+            }
+
+            return (
+              rideStatus ===
+                'available' ||
+              rideStatus ===
+                'full'
+            );
+          }
+
+          if (
+            activeTab ===
+            'in_progress'
+          ) {
+            return (
+              rideStatus ===
+              'in_progress'
+            );
+          }
+
+          if (
+            activeTab ===
+            'history'
+          ) {
+            return (
+              rideStatus ===
+                'completed' ||
+              rideStatus ===
+                'cancelled' ||
+              (
+                item.role ===
+                  'passenger' &&
+                item.requestStatus ===
+                  'rejected'
+              )
+            );
+          }
+
+          return true;
+        }
+      );
+    }, [
+      allRideItems,
+      activeTab,
+    ]);
+
+  function openRide(item) {
+    router.push({
+      pathname:
+        '/ride/[id]',
+
+      params: {
+        id:
+          item.ride.id,
+      },
+    });
+  }
+
+  function getRoleLabel(
+    item
+  ) {
+    if (
+      item.role ===
+      'driver'
+    ) {
+      return 'DRIVER';
+    }
+
+    if (
+      item.requestStatus ===
+      'pending'
+    ) {
+      return 'PASSENGER • PENDING';
+    }
+
+    if (
+      item.requestStatus ===
+      'accepted'
+    ) {
+      return 'PASSENGER • ACCEPTED';
+    }
+
+    if (
+      item.requestStatus ===
+      'rejected'
+    ) {
+      return 'PASSENGER • REJECTED';
+    }
+
+    return 'PASSENGER';
+  }
+
+  function getRideStatusLabel(
+    ride
+  ) {
+    if (
+      ride.status ===
+      'in_progress'
+    ) {
+      return 'IN PROGRESS';
+    }
+
+    return ride.status
+      ?.replace(
+        '_',
+        ' '
+      )
+      .toUpperCase();
+  }
+
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
+      <View
+        style={
+          styles.center
+        }
+      >
+        <ActivityIndicator
+          size="large"
+        />
 
-        <Text style={styles.loadingText}>
+        <Text
+          style={
+            styles.loadingText
+          }
+        >
           Loading your rides...
         </Text>
       </View>
@@ -198,354 +392,656 @@ export default function MyRidesScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
+      style={
+        styles.container
+      }
+
+      contentContainerStyle={
+        styles.content
+      }
     >
-      <Text style={styles.title}>
+      <Text
+        style={
+          styles.title
+        }
+      >
         My Rides
       </Text>
 
-      {/* DRIVER SECTION */}
+      {/* Tabs */}
 
-      <Text style={styles.sectionTitle}>
-        I'm Driving
-      </Text>
-
-      {driverRides.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyTitle}>
-            No rides offered
-          </Text>
-
-          <Text style={styles.emptyText}>
-            You have not offered any rides yet.
-          </Text>
-
-          <TouchableOpacity
-            onPress={() =>
-              router.push('/create-ride')
-            }
-            style={styles.offerButton}
-          >
-            <Text style={styles.offerButtonText}>
-              Offer a Ride
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        driverRides.map((ride) => (
-          <TouchableOpacity
-            key={ride.id}
-            onPress={() =>
-              router.push({
-                pathname: '/ride/[id]',
-                params: {
-                  id: ride.id,
-                },
-              })
-            }
-            style={styles.card}
-          >
-            <View style={styles.driverBadge}>
-              <Text style={styles.driverBadgeText}>
-                DRIVER
-              </Text>
-            </View>
-
-            <Text style={styles.route}>
-              {ride.origin}
-            </Text>
-
-            <Text style={styles.arrow}>
-              ↓
-            </Text>
-
-            <Text style={styles.route}>
-              {ride.destination}
-            </Text>
-
-            <View style={styles.divider} />
-
-            <Text style={styles.info}>
-              Date: {ride.departure_date}
-            </Text>
-
-            <Text style={styles.info}>
-              Time: {ride.departure_time}
-            </Text>
-
-            <Text style={styles.info}>
-              Vehicle:{' '}
-              {ride.vehicles?.brand || '-'}
-              {' '}
-              {ride.vehicles?.model || ''}
-            </Text>
-
-            <Text style={styles.info}>
-              Plate:{' '}
-              {ride.vehicles?.plate_number || '-'}
-            </Text>
-
-            <Text style={styles.info}>
-              Seats left:{' '}
-              {ride.available_seats}
-            </Text>
-
-            <Text style={styles.price}>
-              RM{ride.price_per_seat} / seat
-            </Text>
-
-            <Text style={styles.status}>
-              Status:{' '}
-              {ride.status?.toUpperCase()}
-            </Text>
-          </TouchableOpacity>
-        ))
-      )}
-
-      {/* PASSENGER SECTION */}
-
-      <Text style={styles.sectionTitle}>
-        I'm a Passenger
-      </Text>
-
-      {passengerRides.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyTitle}>
-            No ride requests
-          </Text>
-
-          <Text style={styles.emptyText}>
-            You have not requested any rides yet.
-          </Text>
-
-          <TouchableOpacity
-            onPress={() =>
-              router.push('/find-ride')
-            }
-            style={styles.findButton}
-          >
-            <Text style={styles.findButtonText}>
-              Find a Ride
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        passengerRides.map((request) => {
-          const ride = request.rides;
-
-          if (!ride) {
-            return null;
+      <View
+        style={
+          styles.tabs
+        }
+      >
+        <TouchableOpacity
+          onPress={() =>
+            setActiveTab(
+              'upcoming'
+            )
           }
 
-          return (
-            <TouchableOpacity
-              key={request.id}
-              onPress={() =>
-                router.push({
-                  pathname: '/ride/[id]',
-                  params: {
-                    id: ride.id,
-                  },
-                })
+          style={[
+            styles.tab,
+
+            activeTab ===
+              'upcoming' &&
+              styles.activeTab,
+          ]}
+        >
+          <Text
+            style={[
+              styles.tabText,
+
+              activeTab ===
+                'upcoming' &&
+                styles.activeTabText,
+            ]}
+          >
+            Upcoming
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() =>
+            setActiveTab(
+              'in_progress'
+            )
+          }
+
+          style={[
+            styles.tab,
+
+            activeTab ===
+              'in_progress' &&
+              styles.activeTab,
+          ]}
+        >
+          <Text
+            style={[
+              styles.tabText,
+
+              activeTab ===
+                'in_progress' &&
+                styles.activeTabText,
+            ]}
+          >
+            In Progress
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() =>
+            setActiveTab(
+              'history'
+            )
+          }
+
+          style={[
+            styles.tab,
+
+            activeTab ===
+              'history' &&
+              styles.activeTab,
+          ]}
+        >
+          <Text
+            style={[
+              styles.tabText,
+
+              activeTab ===
+                'history' &&
+                styles.activeTabText,
+            ]}
+          >
+            History
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Empty state */}
+
+      {filteredRides.length ===
+      0 ? (
+        <View
+          style={
+            styles.emptyBox
+          }
+        >
+          <Text
+            style={
+              styles.emptyTitle
+            }
+          >
+            No rides here
+          </Text>
+
+          <Text
+            style={
+              styles.emptyText
+            }
+          >
+            {activeTab ===
+            'upcoming'
+              ? 'You currently have no upcoming rides.'
+              : activeTab ===
+                'in_progress'
+              ? 'You do not have a ride in progress.'
+              : 'You do not have any ride history yet.'}
+          </Text>
+
+          {activeTab ===
+            'upcoming' && (
+            <View
+              style={
+                styles.emptyActions
               }
-              style={styles.card}
             >
-              <View style={styles.passengerBadge}>
-                <Text style={styles.passengerBadgeText}>
-                  PASSENGER
+              <TouchableOpacity
+                onPress={() =>
+                  router.push(
+                    '/find-ride'
+                  )
+                }
+
+                style={
+                  styles.secondaryButton
+                }
+              >
+                <Text
+                  style={
+                    styles.secondaryButtonText
+                  }
+                >
+                  Find a Ride
                 </Text>
-              </View>
+              </TouchableOpacity>
 
-              <Text style={styles.route}>
-                {ride.origin}
-              </Text>
+              <TouchableOpacity
+                onPress={() =>
+                  router.push(
+                    '/create-ride'
+                  )
+                }
 
-              <Text style={styles.arrow}>
-                ↓
-              </Text>
+                style={
+                  styles.primaryButton
+                }
+              >
+                <Text
+                  style={
+                    styles.primaryButtonText
+                  }
+                >
+                  Offer a Ride
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      ) : (
+        filteredRides.map(
+          (item) => {
+            const ride =
+              item.ride;
 
-              <Text style={styles.route}>
-                {ride.destination}
-              </Text>
+            return (
+              <TouchableOpacity
+                key={
+                  item.key
+                }
 
-              <View style={styles.divider} />
+                onPress={() =>
+                  openRide(
+                    item
+                  )
+                }
 
-              <Text style={styles.info}>
-                Date: {ride.departure_date}
-              </Text>
+                style={
+                  styles.card
+                }
+              >
+                <View
+                  style={
+                    styles.cardTop
+                  }
+                >
+                  <View
+                    style={[
+                      styles.roleBadge,
 
-              <Text style={styles.info}>
-                Time: {ride.departure_time}
-              </Text>
+                      item.role ===
+                      'driver'
+                        ? styles.driverBadge
+                        : styles.passengerBadge,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.roleBadgeText,
 
-              <Text style={styles.info}>
-                Seats requested:{' '}
-                {request.seats_requested}
-              </Text>
+                        item.role ===
+                          'driver'
+                          ? styles.driverBadgeText
+                          : styles.passengerBadgeText,
+                      ]}
+                    >
+                      {getRoleLabel(
+                        item
+                      )}
+                    </Text>
+                  </View>
 
-              <Text style={styles.price}>
-                RM{ride.price_per_seat} / seat
-              </Text>
+                  <Text
+                    style={
+                      styles.rideStatus
+                    }
+                  >
+                    {getRideStatusLabel(
+                      ride
+                    )}
+                  </Text>
+                </View>
 
-              <Text style={styles.status}>
-                Request:{' '}
-                {request.status?.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          );
-        })
+                <Text
+                  style={
+                    styles.route
+                  }
+                >
+                  {ride.origin}
+                </Text>
+
+                <Text
+                  style={
+                    styles.arrow
+                  }
+                >
+                  ↓
+                </Text>
+
+                <Text
+                  style={
+                    styles.route
+                  }
+                >
+                  {
+                    ride.destination
+                  }
+                </Text>
+
+                <View
+                  style={
+                    styles.divider
+                  }
+                />
+
+                <View
+                  style={
+                    styles.infoRow
+                  }
+                >
+                  <View
+                    style={
+                      styles.infoColumn
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.infoLabel
+                      }
+                    >
+                      Date
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.infoValue
+                      }
+                    >
+                      {
+                        ride.departure_date
+                      }
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.infoColumn
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.infoLabel
+                      }
+                    >
+                      Time
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.infoValue
+                      }
+                    >
+                      {
+                        ride.departure_time
+                      }
+                    </Text>
+                  </View>
+                </View>
+
+                {item.role ===
+                'driver' ? (
+                  <>
+                    <Text
+                      style={
+                        styles.info
+                      }
+                    >
+                      Vehicle:{' '}
+                      {
+                        ride.vehicles
+                          ?.brand
+                      }{' '}
+                      {
+                        ride.vehicles
+                          ?.model
+                      }
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.info
+                      }
+                    >
+                      Seats left:{' '}
+                      {
+                        ride.available_seats
+                      }
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text
+                      style={
+                        styles.info
+                      }
+                    >
+                      Seats requested:{' '}
+                      {
+                        item.seatsRequested
+                      }
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.info
+                      }
+                    >
+                      Request status:{' '}
+                      {item.requestStatus
+                        ?.toUpperCase()}
+                    </Text>
+                  </>
+                )}
+
+                <Text
+                  style={
+                    styles.price
+                  }
+                >
+                  RM
+                  {
+                    ride.price_per_seat
+                  }{' '}
+                  / seat
+                </Text>
+
+                <Text
+                  style={
+                    styles.openDetails
+                  }
+                >
+                  View Ride Details →
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+        )
       )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor:
+        'white',
+    },
 
-  content: {
-    padding: 24,
-    paddingTop: 50,
-    paddingBottom: 60,
-  },
+    content: {
+      padding: 24,
+      paddingTop: 50,
+      paddingBottom: 60,
+    },
 
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+    center: {
+      flex: 1,
+      justifyContent:
+        'center',
+      alignItems:
+        'center',
+    },
 
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
-  },
+    loadingText: {
+      marginTop: 10,
+      color: '#666',
+    },
 
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 30,
-  },
+    title: {
+      fontSize: 32,
+      fontWeight:
+        'bold',
+      marginBottom: 24,
+    },
 
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginTop: 10,
-    marginBottom: 15,
-  },
+    tabs: {
+      flexDirection:
+        'row',
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 12,
+      padding: 4,
+      marginBottom: 24,
+    },
 
-  card: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 18,
-  },
+    tab: {
+      flex: 1,
+      paddingVertical: 11,
+      alignItems:
+        'center',
+      borderRadius: 9,
+    },
 
-  route: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
+    activeTab: {
+      backgroundColor:
+        '#222',
+    },
 
-  arrow: {
-    fontSize: 18,
-    marginVertical: 4,
-  },
+    tabText: {
+      color: '#666',
+      fontWeight: '600',
+      fontSize: 13,
+    },
 
-  divider: {
-    height: 1,
-    backgroundColor: '#eee',
-    marginVertical: 14,
-  },
+    activeTabText: {
+      color: 'white',
+    },
 
-  info: {
-    color: '#666',
-    marginBottom: 5,
-  },
+    card: {
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 16,
+      padding: 18,
+      marginBottom: 18,
+    },
 
-  price: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
+    cardTop: {
+      flexDirection:
+        'row',
+      justifyContent:
+        'space-between',
+      alignItems:
+        'center',
+      marginBottom: 14,
+      gap: 10,
+    },
 
-  status: {
-    fontWeight: 'bold',
-    marginTop: 10,
-  },
+    roleBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 8,
+    },
 
-  driverBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#222',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
+    driverBadge: {
+      backgroundColor:
+        '#222',
+    },
 
-  driverBadgeText: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
+    passengerBadge: {
+      borderWidth: 1,
+      borderColor: '#222',
+    },
 
-  passengerBadge: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#222',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
+    roleBadgeText: {
+      fontSize: 10,
+      fontWeight:
+        'bold',
+    },
 
-  passengerBadgeText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
+    driverBadgeText: {
+      color: 'white',
+    },
 
-  emptyBox: {
-    borderWidth: 1,
-    borderColor: '#eee',
-    borderRadius: 14,
-    padding: 20,
-    marginBottom: 30,
-  },
+    passengerBadgeText: {
+      color: '#222',
+    },
 
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
+    rideStatus: {
+      fontSize: 11,
+      fontWeight:
+        'bold',
+      color: '#666',
+    },
 
-  emptyText: {
-    color: '#666',
-    marginTop: 5,
-  },
+    route: {
+      fontSize: 18,
+      fontWeight:
+        'bold',
+    },
 
-  offerButton: {
-    backgroundColor: '#222',
-    padding: 13,
-    borderRadius: 10,
-    marginTop: 15,
-  },
+    arrow: {
+      fontSize: 18,
+      marginVertical: 5,
+    },
 
-  offerButtonText: {
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
+    divider: {
+      height: 1,
+      backgroundColor:
+        '#eee',
+      marginVertical: 14,
+    },
 
-  findButton: {
-    borderWidth: 1,
-    borderColor: '#222',
-    padding: 13,
-    borderRadius: 10,
-    marginTop: 15,
-  },
+    infoRow: {
+      flexDirection:
+        'row',
+      gap: 12,
+      marginBottom: 10,
+    },
 
-  findButtonText: {
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-});
+    infoColumn: {
+      flex: 1,
+    },
+
+    infoLabel: {
+      color: '#777',
+      fontSize: 12,
+    },
+
+    infoValue: {
+      fontWeight: '600',
+      marginTop: 3,
+    },
+
+    info: {
+      color: '#666',
+      marginTop: 5,
+    },
+
+    price: {
+      fontSize: 18,
+      fontWeight:
+        'bold',
+      marginTop: 12,
+    },
+
+    openDetails: {
+      marginTop: 14,
+      fontWeight: '600',
+    },
+
+    emptyBox: {
+      borderWidth: 1,
+      borderColor: '#eee',
+      borderRadius: 14,
+      padding: 22,
+    },
+
+    emptyTitle: {
+      fontSize: 19,
+      fontWeight:
+        'bold',
+    },
+
+    emptyText: {
+      color: '#666',
+      marginTop: 6,
+      lineHeight: 20,
+    },
+
+    emptyActions: {
+      marginTop: 18,
+      gap: 10,
+    },
+
+    primaryButton: {
+      backgroundColor:
+        '#222',
+      padding: 14,
+      borderRadius: 10,
+    },
+
+    primaryButtonText: {
+      color: 'white',
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+    },
+
+    secondaryButton: {
+      borderWidth: 1,
+      borderColor: '#222',
+      padding: 14,
+      borderRadius: 10,
+    },
+
+    secondaryButtonText: {
+      textAlign:
+        'center',
+      fontWeight:
+        'bold',
+    },
+  });
